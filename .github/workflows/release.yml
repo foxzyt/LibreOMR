@@ -1,0 +1,105 @@
+#
+# LibreOMR - Robust Optical Mark Recognition Library
+# Copyright (C) 2026 Bernardo Alvim
+#
+# This program is free software: you can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published by
+# the Free Software Foundation, either version 3 of the License, or
+# (at your option) any later version.
+#
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+# GNU General Public License for more details.
+#
+# You should have received a copy of the GNU General Public License
+# along with this program. If not, see <https://www.gnu.org/licenses/>.
+#
+
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*.*.*'
+
+permissions:
+  contents: write
+
+jobs:
+  build-release:
+    name: Package ${{ matrix.artifact_name }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        include:
+          - os: ubuntu-latest
+            artifact_name: libreomr-linux-x86_64
+            archive_ext: tar.gz
+            generator: Ninja
+          - os: windows-latest
+            artifact_name: libreomr-windows-x86_64
+            archive_ext: zip
+            generator: "Visual Studio 17 2022"
+          - os: macos-latest
+            artifact_name: libreomr-macos-universal
+            archive_ext: tar.gz
+            generator: Ninja
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Install Ninja (Linux)
+        if: runner.os == 'Linux'
+        run: sudo apt-get update && sudo apt-get install -y ninja-build
+
+      - name: Install Ninja (macOS)
+        if: runner.os == 'macOS'
+        run: brew install ninja
+
+      - name: Configure CMake
+        run: |
+          cmake -B build -G "${{ matrix.generator }}" \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DCMAKE_INSTALL_PREFIX=dist \
+            -DLIBREOMR_BUILD_TESTS=ON \
+            -DLIBREOMR_BUILD_CLI=ON
+
+      - name: Build with 6 threads
+        run: cmake --build build --config Release -j 6
+
+      - name: Run Tests
+        run: ctest --test-dir build --output-on-failure -C Release
+
+      - name: Install to Staging
+        run: cmake --install build --config Release
+
+      - name: Copy Documentation and License
+        shell: bash
+        run: |
+          cp LICENSE dist/
+          cp README.md dist/
+
+      - name: Create Package Archive (Unix)
+        if: runner.os != 'Windows'
+        shell: bash
+        run: |
+          tar -czvf "${{ matrix.artifact_name }}.tar.gz" -C dist .
+          shasum -a 256 "${{ matrix.artifact_name }}.tar.gz" > "${{ matrix.artifact_name }}.tar.gz.sha256"
+
+      - name: Create Package Archive (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          Compress-Archive -Path dist/* -DestinationPath "${{ matrix.artifact_name }}.zip"
+          $hash = (Get-FileHash -Algorithm SHA256 "${{ matrix.artifact_name }}.zip").Hash.ToLower()
+          "$hash  ${{ matrix.artifact_name }}.zip" | Out-File -Encoding ascii "${{ matrix.artifact_name }}.zip.sha256"
+
+      - name: Upload Release Artifacts
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            libreomr-*.*
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

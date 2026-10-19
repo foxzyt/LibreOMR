@@ -1,0 +1,100 @@
+#
+# LibreOMR - Robust Optical Mark Recognition Library
+# Copyright (C) 2026 Bernardo Alvim
+#
+# This program is free software: you can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published by
+# the Free Software Foundation, either version 3 of the License, or
+# (at your option) any later version.
+#
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+# GNU General Public License for more details.
+#
+# You should have received a copy of the GNU General Public License
+# along with this program. If not, see <https://www.gnu.org/licenses/>.
+#
+
+name: CI
+
+on:
+  push:
+    branches: [ main, master, develop ]
+  pull_request:
+    branches: [ main, master ]
+
+jobs:
+  build-and-test:
+    name: ${{ matrix.name }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: Ubuntu GCC (Linux)
+            os: ubuntu-latest
+            cc: gcc
+            cxx: g++
+            generator: Ninja
+          - name: Ubuntu Clang (Linux)
+            os: ubuntu-latest
+            cc: clang
+            cxx: clang++
+            generator: Ninja
+          - name: Windows MSVC
+            os: windows-latest
+            cc: cl
+            cxx: cl
+            generator: "Visual Studio 17 2022"
+          - name: Windows MinGW
+            os: windows-latest
+            cc: gcc
+            cxx: g++
+            generator: Ninja
+          - name: macOS Clang
+            os: macos-latest
+            cc: clang
+            cxx: clang++
+            generator: Ninja
+
+    steps:
+      - name: Checkout source code
+        uses: actions/checkout@v4
+
+      - name: Install dependencies (Linux)
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y ninja-build
+
+      - name: Install dependencies (macOS)
+        if: runner.os == 'macOS'
+        run: |
+          brew install ninja
+
+      - name: Setup Ninja (Windows)
+        if: runner.os == 'Windows' && matrix.generator == 'Ninja'
+        uses: ashutoshvarma/setup-ninja@master
+        with:
+          version: 1.11.1
+
+      - name: Configure CMake
+        env:
+          CC: ${{ matrix.cc }}
+          CXX: ${{ matrix.cxx }}
+        run: |
+          cmake -B build -G "${{ matrix.generator }}" -DCMAKE_BUILD_TYPE=Release -DLIBREOMR_BUILD_TESTS=ON -DLIBREOMR_BUILD_CLI=ON
+
+      - name: Build with 6 threads
+        run: |
+          cmake --build build --config Release -j 6
+
+      - name: Run Unit Tests
+        run: |
+          ctest --test-dir build --output-on-failure -C Release
+
+      - name: Verify CLI Executable
+        run: |
+          cmake --install build --prefix install-test --config Release
+          ${{ runner.os == 'Windows' && './install-test/bin/libreomr.exe' || './install-test/bin/libreomr' }} version
