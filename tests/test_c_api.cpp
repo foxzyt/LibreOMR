@@ -23,8 +23,8 @@
 TEST_CASE(TestCApiVersion) {
     ASSERT_EQ(libreomr_version_major(), 1);
     ASSERT_EQ(libreomr_version_minor(), 0);
-    ASSERT_EQ(libreomr_version_patch(), 2);
-    ASSERT_TRUE(std::strcmp(libreomr_version_string(), "1.0.2") == 0);
+    ASSERT_EQ(libreomr_version_patch(), 3);
+    ASSERT_TRUE(std::strcmp(libreomr_version_string(), "1.0.3") == 0);
 }
 
 TEST_CASE(TestCApiImageLifecycle) {
@@ -108,7 +108,14 @@ TEST_CASE(TestCApiFullPipeline) {
     ASSERT_TRUE(csv_out != nullptr);
     libreomr_string_free(csv_out);
 
-    // 6. Cleanup
+    // 6. Test Debug Image Rendering via C API
+    libreomr_image_t* debug_img = nullptr;
+    status = libreomr_result_render_debug(result, sheet_img, &debug_img);
+    ASSERT_EQ(status, LIBREOMR_SUCCESS);
+    ASSERT_TRUE(debug_img != nullptr);
+    libreomr_image_destroy(debug_img);
+
+    // 7. Cleanup
     libreomr_result_destroy(result);
     libreomr_processor_destroy(proc);
     libreomr_image_destroy(sheet_img);

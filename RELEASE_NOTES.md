@@ -1,10 +1,11 @@
-## LibreOMR 1.0.2
+## LibreOMR 1.0.3
 
-Patch release fixing out-of-bounds crash on empty input images.
+Patch release resolving coordinate space projection in debug rendering and adding defensive allocation guards.
 
 ### Bug Fixes
 
-- Fixed unhandled exception in `Processor::process`: Processing empty images (0x0 or unallocated buffers) or zero-dimension templates now returns a graceful failed-alignment `PageResult` instead of throwing `std::out_of_range`.
+- **Debug Overlay Projection**: Fixed coordinate space mismatch in `PageResult::renderDebugImage` and `libreomr_result_render_debug` when processing rotated or skewed images. Bubble overlays are now projected via template-to-base homography directly onto the original image space.
+- **Memory Safety**: Added `nullptr` guards post-`calloc` in `PageResult::toC` across questions and bubble allocations to prevent null pointer dereferences on out-of-memory (OOM) conditions.
 
 ### Assets and Distribution
 
