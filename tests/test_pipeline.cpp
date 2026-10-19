@@ -121,3 +121,29 @@ TEST_CASE(TestEndToEndOMRPipelineWithPerspectiveAndSkew) {
 
     ASSERT_EQ(result.total_score, 6.0f);
 }
+
+TEST_CASE(TestProcessEmptyImageGracefulFallback) {
+    Template tmpl("Empty Test", 800, 1100, 150);
+    tmpl.setDefaultFiducials(40.0f, 24.0f);
+    QuestionDefinition q;
+    q.id = "q1";
+    q.name = "Question 1";
+    q.weight = 2.0f;
+    q.addBubble("A", Point2Df(100, 100), 10.0f);
+    tmpl.addQuestion(q);
+
+    Processor processor;
+    Image empty_image; // 0x0 empty image
+    PageResult result = processor.process(empty_image, tmpl);
+
+    ASSERT_FALSE(result.alignment_successful);
+    ASSERT_EQ(result.questions.size(), 1u);
+    ASSERT_FALSE(result.questions[0].is_answered);
+    ASSERT_FALSE(result.questions[0].is_correct);
+    ASSERT_EQ(result.questions[0].earned_score, 0.0f);
+    ASSERT_EQ(result.questions[0].max_score, 2.0f);
+    ASSERT_EQ(result.total_score, 0.0f);
+    ASSERT_EQ(result.max_score, 2.0f);
+    ASSERT_EQ(result.score_percentage, 0.0f);
+}
+

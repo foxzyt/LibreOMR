@@ -1,10 +1,10 @@
-## LibreOMR 1.0.1
+## LibreOMR 1.0.2
 
-Patch release fixing bubble label matching in synthesized answer sheets.
+Patch release fixing out-of-bounds crash on empty input images.
 
 ### Bug Fixes
 
-- Fixed substring collision in `Template::renderFilledSheet`: Answer label matching now uses exact token parsing (delimited by commas or semicolons) instead of substring search, preventing unintended fills on numeric or prefix-sharing labels (e.g., answering "10" no longer erroneously marks option "1").
+- Fixed unhandled exception in `Processor::process`: Processing empty images (0x0 or unallocated buffers) or zero-dimension templates now returns a graceful failed-alignment `PageResult` instead of throwing `std::out_of_range`.
 
 ### Assets and Distribution
 

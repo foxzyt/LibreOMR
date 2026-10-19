@@ -121,12 +121,33 @@ BubbleMetric Processor::analyzeBubble(const Image& gray_image, const Image& bina
 
 PageResult Processor::process(const Image& image, const Template& tmpl) const {
     PageResult result;
+    result.alignment_successful = false;
+    result.alignment_skew_degrees = 0.0f;
+    result.detected_fiducials = tmpl.fiducials();
+
+    if (image.empty() || tmpl.width() == 0 || tmpl.height() == 0) {
+        float total_possible = 0.0f;
+        for (const auto& q_def : tmpl.questions()) {
+            QuestionResult q_res;
+            q_res.question_id = q_def.id;
+            q_res.question_name = q_def.name;
+            q_res.type = q_def.type;
+            q_res.max_score = q_def.weight;
+            q_res.is_answered = false;
+            q_res.is_correct = false;
+            q_res.is_ambiguous = false;
+            q_res.confidence = 0.0f;
+            total_possible += q_def.weight;
+            result.questions.push_back(q_res);
+        }
+        result.total_score = 0.0f;
+        result.max_score = total_possible;
+        result.score_percentage = 0.0f;
+        return result;
+    }
 
     Image gray = (image.channels() > 1) ? image.toGrayscale() : image.clone();
     Image aligned = gray;
-
-    result.alignment_successful = false;
-    result.alignment_skew_degrees = 0.0f;
 
     if (config_.auto_align) {
         auto detected_quad = FiducialDetector::detectCorners(gray, config_.fiducial_config);
