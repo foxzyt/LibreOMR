@@ -72,3 +72,34 @@ TEST_CASE(TestBlankSheetRendering) {
     // Center of bubble A should be white (255) inside
     ASSERT_EQ(sheet.at(100, 150, 0), 255);
 }
+
+TEST_CASE(TestFilledSheetExactTokenMatching) {
+    Template tmpl("Sheet Token Test", 600, 800, 150);
+    tmpl.setDefaultFiducials(30.0f, 20.0f);
+
+    QuestionDefinition q;
+    q.id = "q1";
+    q.addBubble("1", Point2Df(100, 200), 10.0f);
+    q.addBubble("10", Point2Df(150, 200), 10.0f);
+    q.addBubble("2", Point2Df(200, 200), 10.0f);
+    tmpl.addQuestion(q);
+
+    // Answer is "10", option "1" MUST NOT be filled (no substring collision)
+    std::map<std::string, std::string> ans1 = {{"q1", "10"}};
+    Image sheet1 = tmpl.renderFilledSheet(ans1);
+
+    // Bubble "1" center must remain white (255)
+    ASSERT_EQ(sheet1.at(100, 200, 0), 255);
+    // Bubble "10" center must be dark filled (< 50)
+    ASSERT_TRUE(sheet1.at(150, 200, 0) < 50);
+    // Bubble "2" center must remain white (255)
+    ASSERT_EQ(sheet1.at(200, 200, 0), 255);
+
+    // Test multiple choice comma-separated answer "1, 2"
+    std::map<std::string, std::string> ans2 = {{"q1", "1, 2"}};
+    Image sheet2 = tmpl.renderFilledSheet(ans2);
+    ASSERT_TRUE(sheet2.at(100, 200, 0) < 50);
+    ASSERT_EQ(sheet2.at(150, 200, 0), 255);
+    ASSERT_TRUE(sheet2.at(200, 200, 0) < 50);
+}
+

@@ -18,6 +18,7 @@
 
 #include "libreomr/template.hpp"
 #include "libreomr/json.hpp"
+#include <cctype>
 #include <fstream>
 #include <sstream>
 #include <stdexcept>
@@ -243,12 +244,36 @@ Image Template::renderFilledSheet(const std::map<std::string, std::string>& answ
         const std::string& target_ans = it->second;
 
         for (const auto& b : q.bubbles) {
-            // Check if label matches or is part of comma-separated multiple choice answers
+            // Check if label matches or is part of comma/semicolon-separated answer tokens
             bool should_fill = false;
-            if (target_ans == b.label) {
-                should_fill = true;
-            } else if (target_ans.find(b.label) != std::string::npos) {
-                should_fill = true;
+            if (!b.label.empty()) {
+                if (target_ans == b.label) {
+                    should_fill = true;
+                } else {
+                    size_t start = 0;
+                    while (start < target_ans.size()) {
+                        size_t end = target_ans.find_first_of(",;", start);
+                        if (end == std::string::npos) end = target_ans.size();
+
+                        size_t token_start = start;
+                        while (token_start < end && std::isspace(static_cast<unsigned char>(target_ans[token_start]))) {
+                            token_start++;
+                        }
+                        size_t token_end = end;
+                        while (token_end > token_start && std::isspace(static_cast<unsigned char>(target_ans[token_end - 1]))) {
+                            token_end--;
+                        }
+
+                        if (token_end > token_start) {
+                            if (target_ans.compare(token_start, token_end - token_start, b.label) == 0) {
+                                should_fill = true;
+                                break;
+                            }
+                        }
+
+                        start = end + 1;
+                    }
+                }
             }
 
             if (should_fill) {
