@@ -60,9 +60,9 @@ jobs:
           - os: windows-latest
             artifact_name: libreomr-windows-x86_64
             archive_ext: zip
-            generator: "Visual Studio 17 2022"
-            cc: ""
-            cxx: ""
+            generator: Ninja
+            cc: cl
+            cxx: cl
             extra_cmake_flags: ""
           - os: macos-latest
             artifact_name: libreomr-macos-arm64
@@ -75,6 +75,10 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
+
+      - name: Set up MSVC environment (Windows)
+        if: runner.os == 'Windows'
+        uses: ilammy/msvc-dev-cmd@v1
 
       - name: Install dependencies (Linux)
         if: runner.os == 'Linux'

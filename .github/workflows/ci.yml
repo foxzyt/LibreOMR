@@ -63,9 +63,9 @@ jobs:
             extra_cmake_flags: "-DCMAKE_CXX_FLAGS=-fsanitize=address,undefined -DCMAKE_C_FLAGS=-fsanitize=address,undefined"
           - name: Windows MSVC (Release)
             os: windows-latest
-            cc: ""
-            cxx: ""
-            generator: "Visual Studio 17 2022"
+            cc: cl
+            cxx: cl
+            generator: Ninja
             build_type: Release
             extra_cmake_flags: ""
           - name: macOS AppleClang (Release)
@@ -79,6 +79,10 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
+
+      - name: Set up MSVC environment (Windows)
+        if: runner.os == 'Windows'
+        uses: ilammy/msvc-dev-cmd@v1
 
       - name: Install dependencies (Linux)
         if: runner.os == 'Linux'
