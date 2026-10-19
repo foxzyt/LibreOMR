@@ -20,4 +20,5 @@ install-test/
 *.jpg
 *.bmp
 *.json
-!template.json
+*.pdf
+__pycache__/

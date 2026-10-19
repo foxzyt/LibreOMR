@@ -23,78 +23,114 @@ on:
     branches: [ main, master, develop ]
   pull_request:
     branches: [ main, master ]
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  CTEST_OUTPUT_ON_FAILURE: 1
 
 jobs:
-  build-and-test:
+  matrix-build-test:
     name: ${{ matrix.name }}
     runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
       matrix:
         include:
-          - name: Ubuntu GCC (Linux)
+          - name: Linux GCC (Release)
             os: ubuntu-latest
             cc: gcc
             cxx: g++
             generator: Ninja
-          - name: Ubuntu Clang (Linux)
+            build_type: Release
+            extra_cmake_flags: ""
+          - name: Linux Clang (Release)
             os: ubuntu-latest
             cc: clang
             cxx: clang++
             generator: Ninja
-          - name: Windows MSVC
-            os: windows-latest
-            cc: cl
-            cxx: cl
-            generator: "Visual Studio 17 2022"
-          - name: Windows MinGW
-            os: windows-latest
-            cc: gcc
-            cxx: g++
+            build_type: Release
+            extra_cmake_flags: ""
+          - name: Linux Clang (ASan + UBSan)
+            os: ubuntu-latest
+            cc: clang
+            cxx: clang++
             generator: Ninja
-          - name: macOS Clang
+            build_type: Debug
+            extra_cmake_flags: "-DCMAKE_CXX_FLAGS=-fsanitize=address,undefined -DCMAKE_C_FLAGS=-fsanitize=address,undefined"
+          - name: Windows MSVC (Release)
+            os: windows-latest
+            cc: ""
+            cxx: ""
+            generator: "Visual Studio 17 2022"
+            build_type: Release
+            extra_cmake_flags: ""
+          - name: macOS AppleClang (Release)
             os: macos-latest
             cc: clang
             cxx: clang++
             generator: Ninja
+            build_type: Release
+            extra_cmake_flags: ""
 
     steps:
-      - name: Checkout source code
+      - name: Checkout repository
         uses: actions/checkout@v4
 
       - name: Install dependencies (Linux)
         if: runner.os == 'Linux'
         run: |
           sudo apt-get update
-          sudo apt-get install -y ninja-build
+          sudo apt-get install -y ninja-build ccache
 
       - name: Install dependencies (macOS)
         if: runner.os == 'macOS'
         run: |
-          brew install ninja
+          brew install ninja ccache
 
-      - name: Setup Ninja (Windows)
-        if: runner.os == 'Windows' && matrix.generator == 'Ninja'
-        uses: ashutoshvarma/setup-ninja@master
+      - name: Setup ccache
+        if: runner.os != 'Windows'
+        uses: hendrikmuhs/ccache-action@v1.2
         with:
-          version: 1.11.1
+          key: ${{ matrix.name }}-${{ matrix.build_type }}
 
       - name: Configure CMake
-        env:
-          CC: ${{ matrix.cc }}
-          CXX: ${{ matrix.cxx }}
+        shell: bash
         run: |
-          cmake -B build -G "${{ matrix.generator }}" -DCMAKE_BUILD_TYPE=Release -DLIBREOMR_BUILD_TESTS=ON -DLIBREOMR_BUILD_CLI=ON
+          if [ -n "${{ matrix.cc }}" ]; then
+            export CC="${{ matrix.cc }}"
+            export CXX="${{ matrix.cxx }}"
+          fi
+          cmake -B build -G "${{ matrix.generator }}" \
+            -DCMAKE_BUILD_TYPE=${{ matrix.build_type }} \
+            -DLIBREOMR_BUILD_TESTS=ON \
+            -DLIBREOMR_BUILD_CLI=ON \
+            ${{ matrix.extra_cmake_flags }}
 
       - name: Build with 6 threads
         run: |
-          cmake --build build --config Release -j 6
+          cmake --build build --config ${{ matrix.build_type }} -j 6
 
-      - name: Run Unit Tests
+      - name: Run Unit Test Suite
         run: |
-          ctest --test-dir build --output-on-failure -C Release
+          ctest --test-dir build --output-on-failure -C ${{ matrix.build_type }}
 
-      - name: Verify CLI Executable
+      - name: Test CLI Installation & Execution
+        shell: bash
         run: |
-          cmake --install build --prefix install-test --config Release
-          ${{ runner.os == 'Windows' && './install-test/bin/libreomr.exe' || './install-test/bin/libreomr' }} version
+          cmake --install build --prefix install-test --config ${{ matrix.build_type }}
+          if [ "${{ runner.os }}" = "Windows" ]; then
+            ./install-test/bin/libreomr.exe version
+            ./install-test/bin/libreomr.exe --help
+          elif [ "${{ runner.os }}" = "macOS" ]; then
+            export DYLD_LIBRARY_PATH="${PWD}/install-test/lib:${DYLD_LIBRARY_PATH}"
+            ./install-test/bin/libreomr version
+            ./install-test/bin/libreomr --help
+          else
+            export LD_LIBRARY_PATH="${PWD}/install-test/lib:${LD_LIBRARY_PATH}"
+            ./install-test/bin/libreomr version
+            ./install-test/bin/libreomr --help
+          fi

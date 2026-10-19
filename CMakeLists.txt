@@ -32,6 +32,10 @@ set(CMAKE_C_STANDARD_REQUIRED ON)
 include(GNUInstallDirs)
 include(CMakePackageConfigHelpers)
 
+# Set standard RPATH so installed binaries automatically find their libraries
+set(CMAKE_INSTALL_RPATH "${CMAKE_INSTALL_PREFIX}/${CMAKE_INSTALL_LIBDIR}")
+set(CMAKE_INSTALL_RPATH_USE_LINK_PATH TRUE)
+
 # Build options
 option(BUILD_SHARED_LIBS "Build shared libraries" ON)
 option(LIBREOMR_BUILD_CLI "Build LibreOMR CLI executable" ON)
