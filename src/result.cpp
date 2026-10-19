@@ -112,6 +112,8 @@ bool PageResult::saveToCsvFile(const std::string& filepath) const {
 }
 
 Image PageResult::renderDebugImage(const Image& base_image) const {
+    if (base_image.empty()) return Image();
+
     Image overlay = (base_image.channels() == 1) ? base_image.toRGB() : base_image.clone();
 
     // Blue for fiducial quad
@@ -122,19 +124,39 @@ Image PageResult::renderDebugImage(const Image& base_image) const {
     const std::vector<uint8_t> orange = {255, 150, 0};
     const std::vector<uint8_t> light_red = {230, 70, 70};
 
+    // Determine coordinate mapping from template canonical space to base_image space
+    bool has_transform = false;
+    Matrix3x3 tmpl_to_base;
+    if (alignment_successful && template_fiducials.area() > 1.0 && detected_fiducials.area() > 1.0) {
+        bool h_ok = false;
+        tmpl_to_base = Matrix3x3::computeHomography(template_fiducials, detected_fiducials, &h_ok);
+        has_transform = h_ok;
+    }
+
     for (const auto& q : questions) {
         for (const auto& b : q.bubbles) {
-            Point2Di center(static_cast<int>(b.center.x), static_cast<int>(b.center.y));
-            int r = static_cast<int>(b.bounds.width / 2.0f);
+            Point2Df center_pt = b.center;
+            float r = b.bounds.width / 2.0f;
+
+            if (has_transform) {
+                Point2Df mapped_center = tmpl_to_base.transform(center_pt);
+                Point2Df mapped_edge = tmpl_to_base.transform({center_pt.x + r, center_pt.y});
+                r = mapped_center.distanceTo(mapped_edge);
+                center_pt = mapped_center;
+            }
+
+            Point2Di center(static_cast<int>(std::round(center_pt.x)),
+                            static_cast<int>(std::round(center_pt.y)));
+            int draw_r = std::max(1, static_cast<int>(std::round(r)));
 
             if (b.is_marked) {
                 if (q.is_ambiguous) {
-                    overlay.drawCircle(center, r + 2, orange, 3);
+                    overlay.drawCircle(center, draw_r + 2, orange, 3);
                 } else {
-                    overlay.drawCircle(center, r + 2, green, 3);
+                    overlay.drawCircle(center, draw_r + 2, green, 3);
                 }
             } else {
-                overlay.drawCircle(center, r, light_red, 1);
+                overlay.drawCircle(center, draw_r, light_red, 1);
             }
         }
     }
@@ -149,6 +171,7 @@ libreomr_page_result_t* PageResult::toC() const {
     c_res->alignment_successful = alignment_successful;
     c_res->alignment_skew_degrees = alignment_skew_degrees;
     c_res->detected_markers = detected_fiducials.toC();
+    c_res->template_markers = template_fiducials.toC();
     c_res->total_score = total_score;
     c_res->max_score = max_score;
     c_res->score_percentage = score_percentage;
@@ -157,6 +180,10 @@ libreomr_page_result_t* PageResult::toC() const {
     if (c_res->num_questions > 0) {
         c_res->questions = static_cast<libreomr_question_result_t*>(
             std::calloc(c_res->num_questions, sizeof(libreomr_question_result_t)));
+        if (!c_res->questions) {
+            std::free(c_res);
+            return nullptr;
+        }
 
         for (size_t i = 0; i < questions.size(); ++i) {
             const auto& q = questions[i];
@@ -177,6 +204,10 @@ libreomr_page_result_t* PageResult::toC() const {
             if (cq.num_bubbles > 0) {
                 cq.bubbles = static_cast<libreomr_bubble_metric_t*>(
                     std::calloc(cq.num_bubbles, sizeof(libreomr_bubble_metric_t)));
+                if (!cq.bubbles) {
+                    freeC(c_res);
+                    return nullptr;
+                }
 
                 for (size_t j = 0; j < q.bubbles.size(); ++j) {
                     const auto& b = q.bubbles[j];

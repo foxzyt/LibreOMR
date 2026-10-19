@@ -373,6 +373,10 @@ libreomr_status_t libreomr_result_to_csv(const libreomr_page_result_t* result, c
 libreomr_status_t libreomr_result_render_debug(
     const libreomr_page_result_t* result, const libreomr_image_t* source_image, libreomr_image_t** out_debug_img) {
     if (!result || !source_image || !out_debug_img) return LIBREOMR_ERROR_INVALID_ARGUMENT;
+    if (source_image->impl.empty()) {
+        setLastError("Source image is empty");
+        return LIBREOMR_ERROR_INVALID_ARGUMENT;
+    }
     try {
         auto* wrapper = new libreomr_image_t();
         libreomr::Image overlay = (source_image->impl.channels() == 1) ? source_image->impl.toRGB() : source_image->impl.clone();
@@ -382,21 +386,43 @@ libreomr_status_t libreomr_result_render_debug(
         const std::vector<uint8_t> orange = {255, 150, 0};
         const std::vector<uint8_t> light_red = {230, 70, 70};
 
-        overlay.drawQuad(libreomr::Quad2D::fromC(result->detected_markers), blue, 3);
+        libreomr::Quad2D det_quad = libreomr::Quad2D::fromC(result->detected_markers);
+        libreomr::Quad2D tmpl_quad = libreomr::Quad2D::fromC(result->template_markers);
+        overlay.drawQuad(det_quad, blue, 3);
+
+        bool has_transform = false;
+        libreomr::Matrix3x3 tmpl_to_base;
+        if (result->alignment_successful && tmpl_quad.area() > 1.0 && det_quad.area() > 1.0) {
+            bool h_ok = false;
+            tmpl_to_base = libreomr::Matrix3x3::computeHomography(tmpl_quad, det_quad, &h_ok);
+            has_transform = h_ok;
+        }
 
         for (uint32_t i = 0; i < result->num_questions; ++i) {
             const auto& q = result->questions[i];
             for (uint32_t j = 0; j < q.num_bubbles; ++j) {
                 const auto& b = q.bubbles[j];
+                libreomr::Point2Df center_pt(
+                    b.bounds.x + b.bounds.width / 2.0f,
+                    b.bounds.y + b.bounds.height / 2.0f);
+                float r = b.bounds.width / 2.0f;
+
+                if (has_transform) {
+                    libreomr::Point2Df mapped_center = tmpl_to_base.transform(center_pt);
+                    libreomr::Point2Df mapped_edge = tmpl_to_base.transform({center_pt.x + r, center_pt.y});
+                    r = mapped_center.distanceTo(mapped_edge);
+                    center_pt = mapped_center;
+                }
+
                 libreomr::Point2Di center(
-                    static_cast<int>(b.bounds.x + b.bounds.width / 2.0f),
-                    static_cast<int>(b.bounds.y + b.bounds.height / 2.0f));
-                int r = static_cast<int>(b.bounds.width / 2.0f);
+                    static_cast<int>(std::round(center_pt.x)),
+                    static_cast<int>(std::round(center_pt.y)));
+                int draw_r = std::max(1, static_cast<int>(std::round(r)));
 
                 if (b.is_marked) {
-                    overlay.drawCircle(center, r + 2, q.is_ambiguous ? orange : green, 3);
+                    overlay.drawCircle(center, draw_r + 2, q.is_ambiguous ? orange : green, 3);
                 } else {
-                    overlay.drawCircle(center, r, light_red, 1);
+                    overlay.drawCircle(center, draw_r, light_red, 1);
                 }
             }
         }

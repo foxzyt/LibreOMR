@@ -58,6 +58,7 @@ public:
     bool alignment_successful{false};
     float alignment_skew_degrees{0.0f};
     Quad2D detected_fiducials;
+    Quad2D template_fiducials;
     std::vector<QuestionResult> questions;
     float total_score{0.0f};
     float max_score{0.0f};

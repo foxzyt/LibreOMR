@@ -100,6 +100,7 @@ typedef struct libreomr_question_result_t {
 typedef struct libreomr_page_result_t {
     bool alignment_successful;
     libreomr_quad_t detected_markers;
+    libreomr_quad_t template_markers;
     float alignment_skew_degrees;
     uint32_t num_questions;
     libreomr_question_result_t* questions;

@@ -147,3 +147,38 @@ TEST_CASE(TestProcessEmptyImageGracefulFallback) {
     ASSERT_EQ(result.score_percentage, 0.0f);
 }
 
+TEST_CASE(TestRenderDebugImageWithCoordinateMapping) {
+    uint32_t w = 800;
+    uint32_t h = 1100;
+    Template tmpl("Debug Test", w, h, 150);
+    tmpl.setDefaultFiducials(40.0f, 24.0f);
+
+    QuestionDefinition q;
+    q.id = "q1";
+    q.addBubble("A", Point2Df(200, 300), 12.0f);
+    tmpl.addQuestion(q);
+
+    std::map<std::string, std::string> ans = {{"q1", "A"}};
+    Image sheet = tmpl.renderFilledSheet(ans);
+
+    // Apply rotation
+    Image skewed = sheet.rotate(2.0, 255);
+
+    Processor processor;
+    PageResult result = processor.process(skewed, tmpl);
+    ASSERT_TRUE(result.alignment_successful);
+
+    // Render debug image on skewed source image
+    Image debug_overlay = result.renderDebugImage(skewed);
+    ASSERT_EQ(debug_overlay.width(), skewed.width());
+    ASSERT_EQ(debug_overlay.height(), skewed.height());
+    ASSERT_EQ(debug_overlay.channels(), 3u); // converted to RGB overlay
+
+    // Verify C API conversion memory safety
+    libreomr_page_result_t* c_res = result.toC();
+    ASSERT_TRUE(c_res != nullptr);
+    ASSERT_TRUE(c_res->alignment_successful);
+    ASSERT_TRUE(c_res->template_markers.top_left.x > 0.0f);
+    PageResult::freeC(c_res);
+}
+

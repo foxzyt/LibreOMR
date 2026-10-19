@@ -124,6 +124,7 @@ PageResult Processor::process(const Image& image, const Template& tmpl) const {
     result.alignment_successful = false;
     result.alignment_skew_degrees = 0.0f;
     result.detected_fiducials = tmpl.fiducials();
+    result.template_fiducials = tmpl.fiducials();
 
     if (image.empty() || tmpl.width() == 0 || tmpl.height() == 0) {
         float total_possible = 0.0f;
