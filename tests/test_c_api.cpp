@@ -22,9 +22,9 @@
 
 TEST_CASE(TestCApiVersion) {
     ASSERT_EQ(libreomr_version_major(), 1);
-    ASSERT_EQ(libreomr_version_minor(), 0);
-    ASSERT_EQ(libreomr_version_patch(), 3);
-    ASSERT_TRUE(std::strcmp(libreomr_version_string(), "1.0.3") == 0);
+    ASSERT_EQ(libreomr_version_minor(), 1);
+    ASSERT_EQ(libreomr_version_patch(), 0);
+    ASSERT_TRUE(std::strcmp(libreomr_version_string(), "1.1.0") == 0);
 }
 
 TEST_CASE(TestCApiImageLifecycle) {
@@ -85,6 +85,9 @@ TEST_CASE(TestCApiFullPipeline) {
 
     libreomr_processor_set_fill_threshold(proc, 0.30f);
     libreomr_processor_set_auto_align(proc, true);
+    libreomr_processor_set_auto_orient(proc, true);
+    libreomr_processor_set_adaptive_thresholding(proc, true);
+    libreomr_processor_set_refine_bubble_centers(proc, true);
 
     // 4. Process
     libreomr_page_result_t* result = nullptr;
