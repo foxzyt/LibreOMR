@@ -77,3 +77,63 @@ TEST_CASE(TestFiducialCornerDetection) {
     ASSERT_NEAR(detected->bottom_left.x, expected_bl.x, 2.0);
     ASSERT_NEAR(detected->bottom_left.y, expected_bl.y, 2.0);
 }
+
+TEST_CASE(TestFiducialDetectionWithDeskBackground) {
+    // Simulate a photo of an exam sheet lying on a table/desk
+    uint32_t total_w = 1200;
+    uint32_t total_h = 1400;
+    Image photo(total_w, total_h, 1);
+    photo.fill(85); // dark desk background
+
+    // Place a white page in the center
+    int page_x = 200;
+    int page_y = 200;
+    int page_w = 800;
+    int page_h = 1000;
+    photo.drawFilledRect(Recti(page_x, page_y, page_w, page_h), {245});
+
+    // Draw fiducials inside the page
+    int marker_size = 24;
+    int margin = 40;
+
+    int m_tl_x = page_x + margin;
+    int m_tl_y = page_y + margin;
+    int m_tr_x = page_x + page_w - margin - marker_size;
+    int m_tr_y = page_y + margin;
+    int m_br_x = page_x + page_w - margin - marker_size;
+    int m_br_y = page_y + page_h - margin - marker_size;
+    int m_bl_x = page_x + margin;
+    int m_bl_y = page_y + page_h - margin - marker_size;
+
+    photo.drawFilledRect(Recti(m_tl_x, m_tl_y, marker_size, marker_size), {0});
+    photo.drawFilledRect(Recti(m_tr_x, m_tr_y, marker_size, marker_size), {0});
+    photo.drawFilledRect(Recti(m_br_x, m_br_y, marker_size, marker_size), {0});
+    photo.drawFilledRect(Recti(m_bl_x, m_bl_y, marker_size, marker_size), {0});
+
+    // Add some random dark specks on the desk
+    photo.drawFilledRect(Recti(50, 50, 15, 15), {10});
+    photo.drawFilledRect(Recti(1100, 1300, 12, 12), {15});
+
+    FiducialConfig config;
+    config.allow_table_background = true;
+    auto detected = FiducialDetector::detectCorners(photo, config);
+    ASSERT_TRUE(detected.has_value());
+
+    float exp_tl_x = m_tl_x + marker_size / 2.0f;
+    float exp_tl_y = m_tl_y + marker_size / 2.0f;
+    float exp_tr_x = m_tr_x + marker_size / 2.0f;
+    float exp_tr_y = m_tr_y + marker_size / 2.0f;
+    float exp_br_x = m_br_x + marker_size / 2.0f;
+    float exp_br_y = m_br_y + marker_size / 2.0f;
+    float exp_bl_x = m_bl_x + marker_size / 2.0f;
+    float exp_bl_y = m_bl_y + marker_size / 2.0f;
+
+    ASSERT_NEAR(detected->top_left.x, exp_tl_x, 3.0);
+    ASSERT_NEAR(detected->top_left.y, exp_tl_y, 3.0);
+    ASSERT_NEAR(detected->top_right.x, exp_tr_x, 3.0);
+    ASSERT_NEAR(detected->top_right.y, exp_tr_y, 3.0);
+    ASSERT_NEAR(detected->bottom_right.x, exp_br_x, 3.0);
+    ASSERT_NEAR(detected->bottom_right.y, exp_br_y, 3.0);
+    ASSERT_NEAR(detected->bottom_left.x, exp_bl_x, 3.0);
+    ASSERT_NEAR(detected->bottom_left.y, exp_bl_y, 3.0);
+}

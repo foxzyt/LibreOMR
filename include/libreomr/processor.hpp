@@ -31,7 +31,9 @@ struct LIBREOMR_API ProcessorConfig {
     float fill_threshold{0.32f};
     float ambiguity_margin{0.12f};
     bool auto_align{true};
+    bool auto_orient{true};
     bool adaptive_thresholding{true};
+    bool refine_bubble_centers{true};
     float inner_sample_ratio{0.78f};
     float background_inner_ratio{1.15f};
     float background_outer_ratio{1.60f};
@@ -51,6 +53,15 @@ public:
 
     [[nodiscard]] bool autoAlign() const noexcept { return config_.auto_align; }
     void setAutoAlign(bool enable) { config_.auto_align = enable; }
+
+    [[nodiscard]] bool autoOrient() const noexcept { return config_.auto_orient; }
+    void setAutoOrient(bool enable) { config_.auto_orient = enable; }
+
+    [[nodiscard]] bool adaptiveThresholding() const noexcept { return config_.adaptive_thresholding; }
+    void setAdaptiveThresholding(bool enable) { config_.adaptive_thresholding = enable; }
+
+    [[nodiscard]] bool refineBubbleCenters() const noexcept { return config_.refine_bubble_centers; }
+    void setRefineBubbleCenters(bool enable) { config_.refine_bubble_centers = enable; }
 
     [[nodiscard]] PageResult process(const Image& image, const Template& tmpl) const;
     [[nodiscard]] PageResult process(const std::string& image_path, const Template& tmpl) const;

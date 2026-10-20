@@ -182,3 +182,116 @@ TEST_CASE(TestRenderDebugImageWithCoordinateMapping) {
     PageResult::freeC(c_res);
 }
 
+TEST_CASE(TestBinarizationWithHarshShadow) {
+    uint32_t w = 800;
+    uint32_t h = 1000;
+    Template tmpl("Shadow Test", w, h, 150);
+    tmpl.setDefaultFiducials(40.0f, 24.0f);
+
+    QuestionDefinition q1;
+    q1.id = "q1";
+    q1.addBubble("A", Point2Df(200, 300), 12.0f); // In shadowed area
+    q1.addBubble("B", Point2Df(250, 300), 12.0f);
+    tmpl.addQuestion(q1);
+
+    QuestionDefinition q2;
+    q2.id = "q2";
+    q2.addBubble("A", Point2Df(550, 300), 12.0f); // In brightly lit area
+    q2.addBubble("B", Point2Df(600, 300), 12.0f);
+    tmpl.addQuestion(q2);
+
+    std::map<std::string, std::string> ans = {{"q1", "A"}, {"q2", "B"}};
+    Image sheet = tmpl.renderFilledSheet(ans);
+
+    // Apply a harsh directional shadow across the left half of the page
+    for (uint32_t y = 0; y < h; ++y) {
+        for (uint32_t x = 0; x < w; ++x) {
+            uint8_t val = sheet.at(x, y, 0);
+            if (x < 400) {
+                // Harsh shadow: drop intensity by 130 levels
+                int darkened = std::max(15, static_cast<int>(val) - 130);
+                sheet.at(x, y, 0) = static_cast<uint8_t>(darkened);
+            }
+        }
+    }
+
+    ProcessorConfig cfg;
+    cfg.adaptive_thresholding = true;
+    Processor proc(cfg);
+    PageResult res = proc.process(sheet, tmpl);
+
+    ASSERT_TRUE(res.alignment_successful);
+    ASSERT_EQ(res.questions.size(), 2u);
+    ASSERT_TRUE(res.questions[0].is_answered);
+    ASSERT_EQ(res.questions[0].selected_answer, "A"); // Correctly read under heavy shadow
+    ASSERT_TRUE(res.questions[1].is_answered);
+    ASSERT_EQ(res.questions[1].selected_answer, "B"); // Correctly read in bright area
+}
+
+TEST_CASE(TestCurvedPaperCenterRefinement) {
+    uint32_t w = 800;
+    uint32_t h = 1000;
+    Template tmpl("Curvature Test", w, h, 150);
+    tmpl.setDefaultFiducials(40.0f, 24.0f);
+
+    QuestionDefinition q;
+    q.id = "q1";
+    q.addBubble("A", Point2Df(300, 400), 14.0f);
+    tmpl.addQuestion(q);
+
+    // Render blank sheet then draw ink mark shifted by 5 pixels (simulating paper curl)
+    Image sheet = tmpl.renderBlankSheet();
+    sheet.drawFilledCircle(Point2Di(305, 403), 11, {10}); // Shifted ink
+
+    ProcessorConfig cfg;
+    cfg.refine_bubble_centers = true;
+    Processor proc(cfg);
+    PageResult res = proc.process(sheet, tmpl);
+
+    ASSERT_TRUE(res.alignment_successful);
+    ASSERT_TRUE(res.questions[0].is_answered);
+    ASSERT_EQ(res.questions[0].selected_answer, "A");
+    ASSERT_TRUE(res.questions[0].bubbles[0].is_marked);
+}
+
+TEST_CASE(TestAutoOrientationRotatedPage) {
+    uint32_t w = 800;
+    uint32_t h = 1100;
+    Template tmpl("Orientation Test", w, h, 150);
+    tmpl.setDefaultFiducials(40.0f, 24.0f);
+
+    QuestionDefinition q;
+    q.id = "q1";
+    q.addBubble("A", Point2Df(200, 300), 12.0f);
+    tmpl.addQuestion(q);
+
+    std::map<std::string, std::string> ans = {{"q1", "A"}};
+    Image sheet = tmpl.renderFilledSheet(ans);
+
+    // Rotate by 90 degrees clockwise
+    Image rotated90 = sheet.rotate(90.0, 255);
+
+    ProcessorConfig cfg;
+    cfg.auto_orient = true;
+    Processor proc(cfg);
+
+    PageResult res90 = proc.process(rotated90, tmpl);
+    ASSERT_TRUE(res90.alignment_successful);
+    ASSERT_TRUE(res90.questions[0].is_answered);
+    ASSERT_EQ(res90.questions[0].selected_answer, "A");
+
+    // Rotate by 180 degrees (upside down)
+    Image rotated180 = sheet.rotate(180.0, 255);
+    PageResult res180 = proc.process(rotated180, tmpl);
+    ASSERT_TRUE(res180.alignment_successful);
+    ASSERT_TRUE(res180.questions[0].is_answered);
+    ASSERT_EQ(res180.questions[0].selected_answer, "A");
+
+    // Rotate by 270 degrees
+    Image rotated270 = sheet.rotate(270.0, 255);
+    PageResult res270 = proc.process(rotated270, tmpl);
+    ASSERT_TRUE(res270.alignment_successful);
+    ASSERT_TRUE(res270.questions[0].is_answered);
+    ASSERT_EQ(res270.questions[0].selected_answer, "A");
+}
+

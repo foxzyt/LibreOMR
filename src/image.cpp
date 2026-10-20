@@ -224,15 +224,23 @@ Image Image::warpPerspective(const Matrix3x3& homography, uint32_t out_width, ui
 
 Image Image::rotate(double degrees, uint8_t background_val) const {
     double rad = degrees * 3.14159265358979323846 / 180.0;
+    double cos_a = std::abs(std::cos(rad));
+    double sin_a = std::abs(std::sin(rad));
+
+    uint32_t new_w = static_cast<uint32_t>(std::round(width_ * cos_a + height_ * sin_a));
+    uint32_t new_h = static_cast<uint32_t>(std::round(width_ * sin_a + height_ * cos_a));
+
     double cx = width_ / 2.0;
     double cy = height_ / 2.0;
+    double new_cx = new_w / 2.0;
+    double new_cy = new_h / 2.0;
 
     Matrix3x3 to_origin = Matrix3x3::translation(-cx, -cy);
     Matrix3x3 rot = Matrix3x3::rotation(rad);
-    Matrix3x3 from_origin = Matrix3x3::translation(cx, cy);
+    Matrix3x3 from_origin = Matrix3x3::translation(new_cx, new_cy);
 
     Matrix3x3 transform = from_origin * rot * to_origin;
-    return warpPerspective(transform, width_, height_, background_val);
+    return warpPerspective(transform, new_w, new_h, background_val);
 }
 
 Image Image::boxBlur(int radius) const {

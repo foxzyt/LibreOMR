@@ -291,6 +291,24 @@ libreomr_status_t libreomr_processor_set_auto_align(libreomr_processor_t* proc, 
     return LIBREOMR_SUCCESS;
 }
 
+libreomr_status_t libreomr_processor_set_auto_orient(libreomr_processor_t* proc, bool enable) {
+    if (!proc) return LIBREOMR_ERROR_INVALID_ARGUMENT;
+    proc->impl.setAutoOrient(enable);
+    return LIBREOMR_SUCCESS;
+}
+
+libreomr_status_t libreomr_processor_set_adaptive_thresholding(libreomr_processor_t* proc, bool enable) {
+    if (!proc) return LIBREOMR_ERROR_INVALID_ARGUMENT;
+    proc->impl.setAdaptiveThresholding(enable);
+    return LIBREOMR_SUCCESS;
+}
+
+libreomr_status_t libreomr_processor_set_refine_bubble_centers(libreomr_processor_t* proc, bool enable) {
+    if (!proc) return LIBREOMR_ERROR_INVALID_ARGUMENT;
+    proc->impl.setRefineBubbleCenters(enable);
+    return LIBREOMR_SUCCESS;
+}
+
 libreomr_status_t libreomr_processor_process(
     libreomr_processor_t* proc, const libreomr_image_t* image,
     const libreomr_template_t* tmpl, libreomr_page_result_t** out_result) {

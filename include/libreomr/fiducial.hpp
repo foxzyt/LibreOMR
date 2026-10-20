@@ -38,8 +38,9 @@ struct LIBREOMR_API FiducialConfig {
     float max_area_fraction{0.03f};
     float min_aspect_ratio{0.70f};
     float max_aspect_ratio{1.42f};
-    float min_solidity{0.75f};
+    float min_solidity{0.70f};
     float search_margin_fraction{0.28f};
+    bool allow_table_background{true};
 };
 
 class LIBREOMR_API FiducialDetector {

@@ -34,9 +34,51 @@ BubbleMetric Processor::analyzeBubble(const Image& gray_image, const Image& bina
     m.center = bubble.center;
     m.bounds = bubble.boundingBox();
 
-    int cx = static_cast<int>(std::round(bubble.center.x));
-    int cy = static_cast<int>(std::round(bubble.center.y));
     float r = bubble.radius;
+    float cx_f = bubble.center.x;
+    float cy_f = bubble.center.y;
+
+    // Feature 3: Paper Curvature / Wrinkle Compensation (Local Center Refinement)
+    if (config_.refine_bubble_centers && !binary_image.empty()) {
+        int base_x = static_cast<int>(std::round(cx_f));
+        int base_y = static_cast<int>(std::round(cy_f));
+        int search_r = std::max(2, static_cast<int>(std::round(r * 0.35f)));
+
+        double dark_sum = 0.0;
+        double sum_x = 0.0;
+        double sum_y = 0.0;
+
+        for (int dy = -search_r; dy <= search_r; ++dy) {
+            for (int dx = -search_r; dx <= search_r; ++dx) {
+                int px = base_x + dx;
+                int py = base_y + dy;
+                if (px >= 0 && px < static_cast<int>(binary_image.width()) &&
+                    py >= 0 && py < static_cast<int>(binary_image.height())) {
+                    if (binary_image.at(px, py, 0) == 0) {
+                        dark_sum += 1.0;
+                        sum_x += px;
+                        sum_y += py;
+                    }
+                }
+            }
+        }
+
+        // If there is dark ink, shift to true mark center
+        if (dark_sum >= 4.0) {
+            float cand_x = static_cast<float>(sum_x / dark_sum);
+            float cand_y = static_cast<float>(sum_y / dark_sum);
+            float shift = std::hypot(cand_x - cx_f, cand_y - cy_f);
+            if (shift <= static_cast<float>(search_r)) {
+                cx_f = cand_x;
+                cy_f = cand_y;
+                m.center = Point2Df(cx_f, cy_f);
+                m.bounds = Rectf(cx_f - r, cy_f - r, r * 2.0f, r * 2.0f);
+            }
+        }
+    }
+
+    int cx = static_cast<int>(std::round(cx_f));
+    int cy = static_cast<int>(std::round(cy_f));
 
     float inner_r = r * config_.inner_sample_ratio;
     float inner_r2 = inner_r * inner_r;
@@ -153,18 +195,123 @@ PageResult Processor::process(const Image& image, const Template& tmpl) const {
     if (config_.auto_align) {
         auto detected_quad = FiducialDetector::detectCorners(gray, config_.fiducial_config);
         if (detected_quad.has_value()) {
-            result.detected_fiducials = *detected_quad;
+            Quad2D raw_quad = *detected_quad;
+            Quad2D best_quad = raw_quad;
+
+            // Feature 4: Automatic Orientation & EXIF Rotation (0, 90, 180, 270 deg)
+            if (config_.auto_orient) {
+                std::array<Quad2D, 4> candidate_quads = {
+                    Quad2D(raw_quad.top_left, raw_quad.top_right, raw_quad.bottom_right, raw_quad.bottom_left),
+                    Quad2D(raw_quad.bottom_left, raw_quad.top_left, raw_quad.top_right, raw_quad.bottom_right),
+                    Quad2D(raw_quad.bottom_right, raw_quad.bottom_left, raw_quad.top_left, raw_quad.top_right),
+                    Quad2D(raw_quad.top_right, raw_quad.bottom_right, raw_quad.bottom_left, raw_quad.top_left)
+                };
+
+                float tmpl_ar = static_cast<float>(tmpl.width()) / std::max(1.0f, static_cast<float>(tmpl.height()));
+                bool tmpl_is_portrait = (tmpl_ar < 1.0f);
+
+                int best_k = 0;
+                double best_score = -1e9;
+
+                for (int k = 0; k < 4; ++k) {
+                    const auto& q = candidate_quads[k];
+                    float q_w = q.top_left.distanceTo(q.top_right);
+                    float q_h = q.top_left.distanceTo(q.bottom_left);
+                    if (q_w < 10.0f || q_h < 10.0f) continue;
+                    float q_ar = q_w / q_h;
+                    bool q_is_portrait = (q_ar < 1.0f);
+
+                    double score = 0.0;
+                    if (q_is_portrait == tmpl_is_portrait) {
+                        score += 500.0;
+                    } else {
+                        score -= 500.0;
+                    }
+
+                    bool h_inv_ok = false;
+                    Matrix3x3 h_inv = Matrix3x3::computeHomography(tmpl.fiducials(), q, &h_inv_ok);
+                    if (!h_inv_ok) continue;
+
+                    // Sample header (top 12%) vs footer (bottom 10%)
+                    double header_darkness = 0.0;
+                    int header_samples = 0;
+                    for (float px = 0.25f; px <= 0.75f; px += 0.15f) {
+                        for (float py = 0.03f; py <= 0.12f; py += 0.03f) {
+                            Point2Df probe_tmpl(px * tmpl.width(), py * tmpl.height());
+                            Point2Df probe_img = h_inv.transform(probe_tmpl);
+                            int ix = static_cast<int>(std::round(probe_img.x));
+                            int iy = static_cast<int>(std::round(probe_img.y));
+                            if (ix >= 0 && ix < static_cast<int>(gray.width()) &&
+                                iy >= 0 && iy < static_cast<int>(gray.height())) {
+                                header_darkness += (255.0 - gray.at(ix, iy, 0));
+                                header_samples++;
+                            }
+                        }
+                    }
+
+                    double footer_darkness = 0.0;
+                    int footer_samples = 0;
+                    for (float px = 0.25f; px <= 0.75f; px += 0.15f) {
+                        for (float py = 0.90f; py <= 0.97f; py += 0.03f) {
+                            Point2Df probe_tmpl(px * tmpl.width(), py * tmpl.height());
+                            Point2Df probe_img = h_inv.transform(probe_tmpl);
+                            int ix = static_cast<int>(std::round(probe_img.x));
+                            int iy = static_cast<int>(std::round(probe_img.y));
+                            if (ix >= 0 && ix < static_cast<int>(gray.width()) &&
+                                iy >= 0 && iy < static_cast<int>(gray.height())) {
+                                footer_darkness += (255.0 - gray.at(ix, iy, 0));
+                                footer_samples++;
+                            }
+                        }
+                    }
+
+                    double avg_header = header_samples > 0 ? (header_darkness / header_samples) : 0.0;
+                    double avg_footer = footer_samples > 0 ? (footer_darkness / footer_samples) : 0.0;
+                    score += (avg_header - avg_footer) * 5.0;
+
+                    // Sample bubble locations for circular marks
+                    int bubble_probes = 0;
+                    double bubble_score = 0.0;
+                    for (const auto& q_def : tmpl.questions()) {
+                        for (const auto& b : q_def.bubbles) {
+                            Point2Df center_img = h_inv.transform(b.center);
+                            int ix = static_cast<int>(std::round(center_img.x));
+                            int iy = static_cast<int>(std::round(center_img.y));
+                            if (ix >= 0 && ix < static_cast<int>(gray.width()) &&
+                                iy >= 0 && iy < static_cast<int>(gray.height())) {
+                                uint8_t center_val = gray.at(ix, iy, 0);
+                                bubble_score += (255.0 - center_val);
+                                bubble_probes++;
+                            }
+                            if (bubble_probes >= 15) break;
+                        }
+                        if (bubble_probes >= 15) break;
+                    }
+                    if (bubble_probes > 0) {
+                        score += (bubble_score / bubble_probes) * 2.0;
+                    }
+
+                    if (score > best_score) {
+                        best_score = score;
+                        best_k = k;
+                    }
+                }
+
+                best_quad = candidate_quads[best_k];
+            }
+
+            result.detected_fiducials = best_quad;
             result.alignment_successful = true;
 
             // Compute skew angle from top markers
-            double dx = detected_quad->top_right.x - detected_quad->top_left.x;
-            double dy = detected_quad->top_right.y - detected_quad->top_left.y;
+            double dx = best_quad.top_right.x - best_quad.top_left.x;
+            double dy = best_quad.top_right.y - best_quad.top_left.y;
             double angle_rad = std::atan2(dy, dx);
             result.alignment_skew_degrees = static_cast<float>(angle_rad * 180.0 / 3.14159265358979323846);
 
             // Compute homography from detected image markers to template canonical positions
             bool h_ok = false;
-            Matrix3x3 homography = Matrix3x3::computeHomography(*detected_quad, tmpl.fiducials(), &h_ok);
+            Matrix3x3 homography = Matrix3x3::computeHomography(best_quad, tmpl.fiducials(), &h_ok);
             if (h_ok) {
                 // Warp detected page into canonical template coordinates
                 aligned = gray.warpPerspective(homography, tmpl.width(), tmpl.height());
@@ -187,8 +334,10 @@ PageResult Processor::process(const Image& image, const Template& tmpl) const {
         }
     }
 
-    // Binarize aligned image for bubble mark detection
-    Image binary = Binarizer::otsu(aligned);
+    // Feature 2: Shadow Invariance via Adaptive Thresholding
+    Image binary = config_.adaptive_thresholding
+        ? Binarizer::adaptiveThreshold(aligned, 65, 12)
+        : Binarizer::otsu(aligned);
 
     float total_earned = 0.0f;
     float total_possible = 0.0f;
