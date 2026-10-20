@@ -137,3 +137,60 @@ TEST_CASE(TestFiducialDetectionWithDeskBackground) {
     ASSERT_NEAR(detected->bottom_left.x, exp_bl_x, 3.0);
     ASSERT_NEAR(detected->bottom_left.y, exp_bl_y, 3.0);
 }
+
+TEST_CASE(TestFiducialAdaptiveThresholdHighDPI) {
+    // Test that 300 DPI high-resolution markers (e.g. 100x100 to 133x133) are not
+    // hollowed out by the adaptive threshold fallback under severe lighting shadows.
+    uint32_t w = 2000;
+    uint32_t h = 2500;
+    Image img(w, h, 1);
+
+    // Severe horizontal shadow gradient (235 on left to 55 on right)
+    for (uint32_t y = 0; y < h; ++y) {
+        for (uint32_t x = 0; x < w; ++x) {
+            uint8_t bg = static_cast<uint8_t>(235 - (180.0 * x / w));
+            img.at(x, y, 0) = bg;
+        }
+    }
+
+    int marker_size = 110;
+    int margin = 120;
+
+    int tl_x = margin;
+    int tl_y = margin;
+    int tr_x = w - margin - marker_size;
+    int tr_y = margin;
+    int br_x = w - margin - marker_size;
+    int br_y = h - margin - marker_size;
+    int bl_x = margin;
+    int bl_y = h - margin - marker_size;
+
+    // Draw solid black markers (value 15)
+    img.drawFilledRect(Recti(tl_x, tl_y, marker_size, marker_size), {15});
+    img.drawFilledRect(Recti(tr_x, tr_y, marker_size, marker_size), {15});
+    img.drawFilledRect(Recti(br_x, br_y, marker_size, marker_size), {15});
+    img.drawFilledRect(Recti(bl_x, bl_y, marker_size, marker_size), {15});
+
+    FiducialConfig config;
+    auto detected = FiducialDetector::detectCorners(img, config);
+    ASSERT_TRUE(detected.has_value());
+
+    float exp_tl_x = tl_x + marker_size / 2.0f;
+    float exp_tl_y = tl_y + marker_size / 2.0f;
+    float exp_tr_x = tr_x + marker_size / 2.0f;
+    float exp_tr_y = tr_y + marker_size / 2.0f;
+    float exp_br_x = br_x + marker_size / 2.0f;
+    float exp_br_y = br_y + marker_size / 2.0f;
+    float exp_bl_x = bl_x + marker_size / 2.0f;
+    float exp_bl_y = bl_y + marker_size / 2.0f;
+
+    ASSERT_NEAR(detected->top_left.x, exp_tl_x, 5.0);
+    ASSERT_NEAR(detected->top_left.y, exp_tl_y, 5.0);
+    ASSERT_NEAR(detected->top_right.x, exp_tr_x, 5.0);
+    ASSERT_NEAR(detected->top_right.y, exp_tr_y, 5.0);
+    ASSERT_NEAR(detected->bottom_right.x, exp_br_x, 5.0);
+    ASSERT_NEAR(detected->bottom_right.y, exp_br_y, 5.0);
+    ASSERT_NEAR(detected->bottom_left.x, exp_bl_x, 5.0);
+    ASSERT_NEAR(detected->bottom_left.y, exp_bl_y, 5.0);
+}
+

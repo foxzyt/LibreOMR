@@ -82,15 +82,17 @@ std::optional<Quad2D> FiducialDetector::detectCorners(const Image& gray_image, c
     uint32_t w = gray.width();
     uint32_t h = gray.height();
     Image binary = Binarizer::otsu(gray);
-
     std::vector<Point2Df> candidates = findMarkerCandidates(binary, config);
     if (candidates.size() < 4) {
-        // Fallback: try with adaptive threshold if standard Otsu missed faint/shadowed corners
-        int win1 = std::max(41, (static_cast<int>(std::min(w, h)) / 25) | 1);
+        // Fallback: try with adaptive threshold if standard Otsu missed faint/shadowed corners.
+        // Scale window size to be significantly larger than fiducial markers (~min_dim / 12)
+        // to prevent hollowing out large solid squares at high resolutions (e.g. 133px at 300 DPI).
+        int min_dim = static_cast<int>(std::min(w, h));
+        int win1 = std::max(41, (min_dim / 12) | 1);
         Image adapt_binary = Binarizer::adaptiveThreshold(gray, win1, 10);
         candidates = findMarkerCandidates(adapt_binary, config);
         if (candidates.size() < 4) {
-            int win2 = std::max(65, (static_cast<int>(std::min(w, h)) / 15) | 1);
+            int win2 = std::max(65, (min_dim / 8) | 1);
             Image adapt_binary2 = Binarizer::adaptiveThreshold(gray, win2, 15);
             candidates = findMarkerCandidates(adapt_binary2, config);
             if (candidates.size() < 4) {
