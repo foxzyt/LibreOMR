@@ -275,12 +275,41 @@ PageResult Processor::process(const Image& image, const Template& tmpl) const {
                     for (const auto& q_def : tmpl.questions()) {
                         for (const auto& b : q_def.bubbles) {
                             Point2Df center_img = h_inv.transform(b.center);
+                            Point2Df edge_img = h_inv.transform(Point2Df(b.center.x + b.radius, b.center.y));
+                            float r_img = center_img.distanceTo(edge_img);
+
                             int ix = static_cast<int>(std::round(center_img.x));
                             int iy = static_cast<int>(std::round(center_img.y));
-                            if (ix >= 0 && ix < static_cast<int>(gray.width()) &&
-                                iy >= 0 && iy < static_cast<int>(gray.height())) {
+                            int r_i = std::max(2, static_cast<int>(std::round(r_img)));
+                            int bg_r = std::max(r_i + 3, static_cast<int>(std::round(r_img * 1.5f)));
+
+                            if (ix - bg_r >= 0 && ix + bg_r < static_cast<int>(gray.width()) &&
+                                iy - bg_r >= 0 && iy + bg_r < static_cast<int>(gray.height())) {
                                 uint8_t center_val = gray.at(ix, iy, 0);
-                                bubble_score += (255.0 - center_val);
+
+                                // Sample 4 points on circle perimeter
+                                uint8_t p1 = gray.at(ix + r_i, iy, 0);
+                                uint8_t p2 = gray.at(ix - r_i, iy, 0);
+                                uint8_t p3 = gray.at(ix, iy + r_i, 0);
+                                uint8_t p4 = gray.at(ix, iy - r_i, 0);
+                                float perim_avg = (p1 + p2 + p3 + p4) / 4.0f;
+
+                                // Sample 4 points on outer background
+                                uint8_t b1 = gray.at(ix + bg_r, iy, 0);
+                                uint8_t b2 = gray.at(ix - bg_r, iy, 0);
+                                uint8_t b3 = gray.at(ix, iy + bg_r, 0);
+                                uint8_t b4 = gray.at(ix, iy - bg_r, 0);
+                                float bg_avg = (b1 + b2 + b3 + b4) / 4.0f;
+
+                                // If filled: center is dark relative to outer background
+                                float filled_contrast = bg_avg - center_val;
+                                // If empty circle: perimeter is dark relative to both center and outer background
+                                float circle_contrast = (bg_avg - perim_avg) + (center_val - perim_avg);
+
+                                float feat = std::max(filled_contrast, circle_contrast);
+                                if (feat > 0.0f) {
+                                    bubble_score += feat;
+                                }
                                 bubble_probes++;
                             }
                             if (bubble_probes >= 15) break;

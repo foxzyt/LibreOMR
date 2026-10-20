@@ -295,3 +295,29 @@ TEST_CASE(TestAutoOrientationRotatedPage) {
     ASSERT_EQ(res270.questions[0].selected_answer, "A");
 }
 
+TEST_CASE(TestAutoOrientationBlankSheet) {
+    uint32_t w = 800;
+    uint32_t h = 1100;
+    Template tmpl("Blank Orientation Test", w, h, 150);
+    tmpl.setDefaultFiducials(40.0f, 24.0f);
+
+    QuestionDefinition q;
+    q.id = "q1";
+    q.addBubble("A", Point2Df(200, 300), 12.0f);
+    tmpl.addQuestion(q);
+
+    // Render an unmarked blank sheet
+    Image blank_sheet = tmpl.renderBlankSheet();
+
+    // Rotate blank sheet by 180 degrees (upside down)
+    Image rotated180 = blank_sheet.rotate(180.0, 255);
+
+    ProcessorConfig cfg;
+    cfg.auto_orient = true;
+    Processor proc(cfg);
+    PageResult res = proc.process(rotated180, tmpl);
+
+    ASSERT_TRUE(res.alignment_successful);
+    ASSERT_FALSE(res.questions[0].is_answered); // Unmarked blank sheet stays blank
+}
+

@@ -79,15 +79,19 @@ std::optional<Quad2D> FiducialDetector::detectCorners(const Image& gray_image, c
     if (gray_image.empty()) return std::nullopt;
 
     Image gray = (gray_image.channels() > 1) ? gray_image.toGrayscale() : gray_image;
+    uint32_t w = gray.width();
+    uint32_t h = gray.height();
     Image binary = Binarizer::otsu(gray);
 
     std::vector<Point2Df> candidates = findMarkerCandidates(binary, config);
     if (candidates.size() < 4) {
         // Fallback: try with adaptive threshold if standard Otsu missed faint/shadowed corners
-        Image adapt_binary = Binarizer::adaptiveThreshold(gray, 41, 10);
+        int win1 = std::max(41, (static_cast<int>(std::min(w, h)) / 25) | 1);
+        Image adapt_binary = Binarizer::adaptiveThreshold(gray, win1, 10);
         candidates = findMarkerCandidates(adapt_binary, config);
         if (candidates.size() < 4) {
-            Image adapt_binary2 = Binarizer::adaptiveThreshold(gray, 65, 15);
+            int win2 = std::max(65, (static_cast<int>(std::min(w, h)) / 15) | 1);
+            Image adapt_binary2 = Binarizer::adaptiveThreshold(gray, win2, 15);
             candidates = findMarkerCandidates(adapt_binary2, config);
             if (candidates.size() < 4) {
                 return std::nullopt;
@@ -95,26 +99,30 @@ std::optional<Quad2D> FiducialDetector::detectCorners(const Image& gray_image, c
         }
     }
 
-    float w = static_cast<float>(gray.width());
-    float h = static_cast<float>(gray.height());
-
     // Filter candidates by surrounding paper background if we have more than 4 candidates
     std::vector<Point2Df> filtered_candidates = candidates;
     if (candidates.size() > 4) {
         std::vector<std::pair<float, Point2Df>> scored;
         for (const auto& pt : candidates) {
-            int cx = static_cast<int>(std::round(pt.x));
-            int cy = static_cast<int>(std::round(pt.y));
-            uint8_t center_val = gray.at(std::clamp(cx, 0, static_cast<int>(gray.width()) - 1),
-                                         std::clamp(cy, 0, static_cast<int>(gray.height()) - 1), 0);
+            int cx = std::clamp(static_cast<int>(std::round(pt.x)), 0, static_cast<int>(gray.width()) - 1);
+            int cy = std::clamp(static_cast<int>(std::round(pt.y)), 0, static_cast<int>(gray.height()) - 1);
+            uint8_t center_val = gray.at(cx, cy, 0);
+
+            // Dynamically measure candidate radius by marching outward until crossing into light paper
+            int r_marker = 6;
+            while (r_marker < 160 && (cx + r_marker) < static_cast<int>(gray.width())) {
+                if (gray.at(cx + r_marker, cy, 0) > 135) break;
+                r_marker += 2;
+            }
 
             // Sample an outer ring around the marker candidate
-            int ring_r = 14;
+            int ring_r = std::max(12, static_cast<int>(std::round(r_marker * 1.5f)));
+            int step = std::max(2, ring_r / 5);
             int bg_sum = 0;
             int bg_cnt = 0;
-            for (int dy = -ring_r; dy <= ring_r; dy += 4) {
-                for (int dx = -ring_r; dx <= ring_r; dx += 4) {
-                    if (std::abs(dx) >= 8 || std::abs(dy) >= 8) {
+            for (int dy = -ring_r; dy <= ring_r; dy += step) {
+                for (int dx = -ring_r; dx <= ring_r; dx += step) {
+                    if (std::abs(dx) >= (r_marker + 3) || std::abs(dy) >= (r_marker + 3)) {
                         int sx = std::clamp(cx + dx, 0, static_cast<int>(gray.width()) - 1);
                         int sy = std::clamp(cy + dy, 0, static_cast<int>(gray.height()) - 1);
                         bg_sum += gray.at(sx, sy, 0);
