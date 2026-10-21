@@ -41,12 +41,15 @@ void printHelp() {
               << "  version             Display version and license information\n"
               << "  help                Display this help message\n\n"
               << "Process Options:\n"
-              << "  --image <path>          Path to scanned sheet image (PNG, JPG, BMP)\n"
-              << "  --template <path>       Path to template JSON file\n"
-              << "  --output <path>         Output file for results (.json or .csv)\n"
-              << "  --debug-image <path>    Render debug overlay image with detected marks\n"
-              << "  --threshold <float>     Fill threshold ratio (default: 0.32)\n"
-              << "  --no-align              Disable fiducial corner detection & perspective unwarping\n\n"
+              << "  --image <path>              Path to scanned sheet image (PNG, JPG, BMP)\n"
+              << "  --template <path>           Path to template JSON file\n"
+              << "  --output <path>             Output file for results (.json or .csv)\n"
+              << "  --debug-image <path>        Render debug overlay image with detected marks\n"
+              << "  --threshold <float>         Fill threshold ratio (default: 0.32)\n"
+              << "  --no-align                  Disable fiducial corner detection & perspective unwarping\n"
+              << "  --no-orient                 Disable auto-orientation detection (0/90/180/270 deg)\n"
+              << "  --no-adaptive-threshold     Use global Otsu binarization instead of adaptive thresholding\n"
+              << "  --no-refine-bubbles         Disable local bubble centroid refinement\n\n"
               << "Generate Sheet Options:\n"
               << "  --template <path>       Path to template JSON file\n"
               << "  --output <path>         Destination image path (.png or .bmp)\n\n"
@@ -63,6 +66,9 @@ int handleProcess(int argc, char** argv) {
     std::string debug_path;
     float threshold = 0.32f;
     bool auto_align = true;
+    bool auto_orient = true;
+    bool adaptive_thresholding = true;
+    bool refine_bubble_centers = true;
 
     for (int i = 2; i < argc; ++i) {
         std::string arg = argv[i];
@@ -78,6 +84,18 @@ int handleProcess(int argc, char** argv) {
             threshold = std::stof(argv[++i]);
         } else if (arg == "--no-align") {
             auto_align = false;
+        } else if (arg == "--auto-orient") {
+            auto_orient = true;
+        } else if (arg == "--no-auto-orient" || arg == "--no-orient") {
+            auto_orient = false;
+        } else if (arg == "--adaptive-threshold") {
+            adaptive_thresholding = true;
+        } else if (arg == "--no-adaptive-threshold") {
+            adaptive_thresholding = false;
+        } else if (arg == "--refine-bubbles") {
+            refine_bubble_centers = true;
+        } else if (arg == "--no-refine-bubbles") {
+            refine_bubble_centers = false;
         }
     }
 
@@ -96,6 +114,9 @@ int handleProcess(int argc, char** argv) {
         libreomr::ProcessorConfig config;
         config.fill_threshold = threshold;
         config.auto_align = auto_align;
+        config.auto_orient = auto_orient;
+        config.adaptive_thresholding = adaptive_thresholding;
+        config.refine_bubble_centers = refine_bubble_centers;
 
         libreomr::Processor processor(config);
         std::cout << "[LibreOMR] Processing answer sheet...\n";

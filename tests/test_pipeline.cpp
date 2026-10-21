@@ -321,3 +321,36 @@ TEST_CASE(TestAutoOrientationBlankSheet) {
     ASSERT_FALSE(res.questions[0].is_answered); // Unmarked blank sheet stays blank
 }
 
+TEST_CASE(TestNoCentroidDriftOnEmptyBubbleGlyph) {
+    uint32_t w = 800;
+    uint32_t h = 1000;
+    Template tmpl("Glyph Drift Test", w, h, 150);
+    tmpl.setDefaultFiducials(40.0f, 24.0f);
+
+    QuestionDefinition q;
+    q.id = "q1";
+    q.addBubble("A", Point2Df(300, 400), 14.0f);
+    tmpl.addQuestion(q);
+
+    Image sheet = tmpl.renderBlankSheet();
+    // Simulate printed letter 'A' inside bubble: small stroke of ~15 pixels shifted off-center
+    for (int y = 402; y <= 405; ++y) {
+        for (int x = 303; x <= 306; ++x) {
+            sheet.at(x, y, 0) = 15;
+        }
+    }
+
+    ProcessorConfig cfg;
+    cfg.refine_bubble_centers = true;
+    Processor proc(cfg);
+    PageResult res = proc.process(sheet, tmpl);
+
+    ASSERT_TRUE(res.alignment_successful);
+    // Should NOT be marked as answered, and center should not shift
+    ASSERT_FALSE(res.questions[0].is_answered);
+    ASSERT_FALSE(res.questions[0].bubbles[0].is_marked);
+    ASSERT_NEAR(res.questions[0].bubbles[0].center.x, 300.0f, 1.0f);
+    ASSERT_NEAR(res.questions[0].bubbles[0].center.y, 400.0f, 1.0f);
+}
+
+

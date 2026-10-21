@@ -63,8 +63,10 @@ BubbleMetric Processor::analyzeBubble(const Image& gray_image, const Image& bina
             }
         }
 
-        // If there is dark ink, shift to true mark center
-        if (dark_sum >= 4.0) {
+        // Only refine center if there is a substantial ink mark (at least 15% of bubble area)
+        // to avoid drifting onto printed letter glyphs (e.g. 'A', 'B', 'C') in empty bubbles.
+        double min_ink_mass = std::max(16.0, 0.15 * 3.14159265358979323846 * r * r);
+        if (dark_sum >= min_ink_mass) {
             float cand_x = static_cast<float>(sum_x / dark_sum);
             float cand_y = static_cast<float>(sum_y / dark_sum);
             float shift = std::hypot(cand_x - cx_f, cand_y - cy_f);
