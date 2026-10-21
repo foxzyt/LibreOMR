@@ -1,5 +1,6 @@
-## LibreOMR 1.1.2
+## LibreOMR 1.1.3
 
-### Fixes
-- **Fiducial detection**: scale adaptive threshold window proportionally in corner detector fallback to prevent hollowed-out markers at 300+ DPI.
+### Fixes & CLI
+- **Bubble refinement**: require minimum ink mass before adjusting center to prevent centroid drift onto printed letters in empty bubbles.
+- **CLI**: add `--no-orient`, `--no-adaptive-threshold`, and `--no-refine-bubbles` flags to `libreomr process`.
 

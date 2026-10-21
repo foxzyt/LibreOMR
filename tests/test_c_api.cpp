@@ -23,8 +23,8 @@
 TEST_CASE(TestCApiVersion) {
     ASSERT_EQ(libreomr_version_major(), 1);
     ASSERT_EQ(libreomr_version_minor(), 1);
-    ASSERT_EQ(libreomr_version_patch(), 2);
-    ASSERT_TRUE(std::strcmp(libreomr_version_string(), "1.1.2") == 0);
+    ASSERT_EQ(libreomr_version_patch(), 3);
+    ASSERT_TRUE(std::strcmp(libreomr_version_string(), "1.1.3") == 0);
 }
 
 TEST_CASE(TestCApiImageLifecycle) {
