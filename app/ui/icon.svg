@@ -1,0 +1,41 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64">
+  <defs>
+    <linearGradient id="libreomrGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#2563eb" />
+      <stop offset="100%" stop-color="#1d4ed8" />
+    </linearGradient>
+  </defs>
+  <!-- App Icon Base Squircle -->
+  <rect x="2" y="2" width="60" height="60" rx="14" fill="url(#libreomrGrad)"/>
+  
+  <!-- White Sheet -->
+  <rect x="12" y="10" width="40" height="44" rx="4" fill="#ffffff"/>
+  
+  <!-- 4 Corner Fiducial Markers -->
+  <rect x="15" y="13" width="3.5" height="3.5" fill="#1e293b"/>
+  <rect x="45.5" y="13" width="3.5" height="3.5" fill="#1e293b"/>
+  <rect x="15" y="47.5" width="3.5" height="3.5" fill="#1e293b"/>
+  <rect x="45.5" y="47.5" width="3.5" height="3.5" fill="#1e293b"/>
+
+  <!-- Header line -->
+  <line x1="21" y1="15" x2="39" y2="15" stroke="#94a3b8" stroke-width="1.5" stroke-linecap="round"/>
+
+  <!-- Row 1: Bubbles (Question 1) -->
+  <circle cx="21" cy="23.5" r="3" stroke="#2563eb" stroke-width="1.2" fill="#2563eb"/>
+  <circle cx="30" cy="23.5" r="3" stroke="#94a3b8" stroke-width="1.2" fill="none"/>
+  <circle cx="39" cy="23.5" r="3" stroke="#94a3b8" stroke-width="1.2" fill="none"/>
+
+  <!-- Row 2: Bubbles (Question 2) -->
+  <circle cx="21" cy="32" r="3" stroke="#94a3b8" stroke-width="1.2" fill="none"/>
+  <circle cx="30" cy="32" r="3" stroke="#2563eb" stroke-width="1.2" fill="#2563eb"/>
+  <circle cx="39" cy="32" r="3" stroke="#94a3b8" stroke-width="1.2" fill="none"/>
+
+  <!-- Row 3: Bubbles (Question 3) -->
+  <circle cx="21" cy="40.5" r="3" stroke="#94a3b8" stroke-width="1.2" fill="none"/>
+  <circle cx="30" cy="40.5" r="3" stroke="#94a3b8" stroke-width="1.2" fill="none"/>
+  <circle cx="39" cy="40.5" r="3" stroke="#2563eb" stroke-width="1.2" fill="#2563eb"/>
+
+  <!-- Verified / Grading Success Badge -->
+  <circle cx="47" cy="47" r="9" fill="#10b981"/>
+  <polyline points="43.5 47 46 49.5 50.5 44.5" fill="none" stroke="#ffffff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+</svg>

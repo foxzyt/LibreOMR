@@ -92,8 +92,14 @@ public:
     static Template fromJson(const std::string& json_str);
     static Template loadFromJsonFile(const std::string& filepath);
 
-    [[nodiscard]] Image renderBlankSheet() const;
-    [[nodiscard]] Image renderFilledSheet(const std::map<std::string, std::string>& answers) const;
+    [[nodiscard]] Image renderBlankSheet(bool include_decorations = true, const std::string& lang = "pt") const;
+    [[nodiscard]] Image renderFilledSheet(const std::map<std::string, std::string>& answers, bool include_decorations = true, const std::string& lang = "pt") const;
+
+    static Template createStandard(int num_questions, int num_options = 5,
+                                  const std::string& title = "Examination Answer Sheet",
+                                  uint32_t dpi = 300,
+                                  const std::string& page_size = "A4",
+                                  int columns = 0);
 
 private:
     std::string name_{"Standard OMR Template"};

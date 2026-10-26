@@ -76,6 +76,7 @@ public:
     void drawRect(const Recti& rect, const std::vector<uint8_t>& color, int thickness = 1);
     void drawFilledRect(const Recti& rect, const std::vector<uint8_t>& color);
     void drawQuad(const Quad2D& quad, const std::vector<uint8_t>& color, int thickness = 2);
+    void drawText(Point2Di pos, const std::string& text, const std::vector<uint8_t>& color, int scale = 1);
 
     static Image loadFromFile(const std::string& filepath);
     static Image loadFromMemory(const uint8_t* buffer, size_t length);

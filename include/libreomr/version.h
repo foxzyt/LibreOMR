@@ -22,9 +22,9 @@
 #include "libreomr/export.h"
 
 #define LIBREOMR_VERSION_MAJOR 1
-#define LIBREOMR_VERSION_MINOR 1
-#define LIBREOMR_VERSION_PATCH 3
-#define LIBREOMR_VERSION_STRING "1.1.3"
+#define LIBREOMR_VERSION_MINOR 2
+#define LIBREOMR_VERSION_PATCH 0
+#define LIBREOMR_VERSION_STRING "1.2.0"
 
 #ifdef __cplusplus
 extern "C" {

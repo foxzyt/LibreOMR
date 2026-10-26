@@ -18,7 +18,9 @@
 
 #include "libreomr/template.hpp"
 #include "libreomr/json.hpp"
+#include <algorithm>
 #include <cctype>
+#include <cmath>
 #include <fstream>
 #include <sstream>
 #include <stdexcept>
@@ -195,18 +197,24 @@ Template Template::loadFromJsonFile(const std::string& filepath) {
     return fromJson(buffer.str());
 }
 
-Image Template::renderBlankSheet() const {
+Image Template::renderBlankSheet(bool include_decorations, const std::string& lang) const {
     Image sheet(width_, height_, 1);
     sheet.fill(255); // White background
 
     const std::vector<uint8_t> black = {0};
+    const std::vector<uint8_t> dark_gray = {90};
+    const std::vector<uint8_t> light_gray = {160};
 
-    // Draw 4 corner fiducial markers (solid black squares, 32x32)
+    // 1. Draw 4 corner fiducial markers (solid black squares)
     const Point2Df corners[4] = {
         fiducials_.top_left, fiducials_.top_right, fiducials_.bottom_right, fiducials_.bottom_left
     };
 
-    const int marker_half = 16;
+    int marker_half = 16;
+    if (dpi_ >= 250 && width_ >= 1000) {
+        marker_half = std::max(16, static_cast<int>(width_ / 75)); // Proportional to resolution
+    }
+
     for (const auto& pt : corners) {
         Recti r(static_cast<int>(pt.x) - marker_half,
                 static_cast<int>(pt.y) - marker_half,
@@ -214,27 +222,114 @@ Image Template::renderBlankSheet() const {
         sheet.drawFilledRect(r, black);
     }
 
-    // Draw bubbles
+    // 2. Draw Multilingual Header & Candidate Information Block (when decorations enabled on large sheets)
+    if (include_decorations && width_ >= 900 && height_ >= 1000) {
+        int scale_title = std::max(2, static_cast<int>(dpi_ / 75));
+        int scale_sub = std::max(1, static_cast<int>(dpi_ / 130));
+        int scale_text = std::max(1, static_cast<int>(dpi_ / 150));
+
+        int left_x = static_cast<int>(fiducials_.top_left.x);
+        int right_x = static_cast<int>(fiducials_.top_right.x);
+        int top_y = static_cast<int>(fiducials_.top_left.y) + marker_half + 20;
+
+        // Top Header Dividers
+        sheet.drawLine(Point2Di(left_x, top_y), Point2Di(right_x, top_y), black, 3);
+        sheet.drawLine(Point2Di(left_x, top_y + 4), Point2Di(right_x, top_y + 4), black, 1);
+
+        std::string title;
+        std::string subtitle;
+        std::string line_name;
+        std::string line_id;
+        std::string directions;
+
+        std::string l = lang;
+        for (auto& c : l) c = static_cast<char>(std::tolower(static_cast<unsigned char>(c)));
+
+        if (l.find("es") != std::string::npos) {
+            title = name_.empty() ? "HOJA DE RESPUESTAS OFICIAL" : name_;
+            subtitle = "PLANTILLA ESTANDARIZADA PARA LECTURA OPTICA (OMR)";
+            line_name = "NOMBRE DEL ALUMNO: _______________________________________  FECHA: _______________";
+            line_id   = "MATRICULA / ID:    _______________________________________  CURSO: _______________";
+            directions = "INSTRUCCIONES: Rellene completamente los circulos con boligrafo oscuro. Una sola opcion.";
+        } else if (l.find("en") != std::string::npos) {
+            title = name_.empty() ? "OFFICIAL EXAMINATION ANSWER SHEET" : name_;
+            subtitle = "OFFICIAL STANDARDIZED ASSESSMENT AND TESTING FORM";
+            line_name = "STUDENT NAME: ___________________________________________  DATE: _______________";
+            line_id   = "STUDENT ID:   ___________________________________________  ROOM: _______________";
+            directions = "DIRECTIONS: Fill in bubbles completely with dark ink or pencil. Mark one choice per question.";
+        } else { // default "pt"
+            title = name_.empty() ? "FOLHA DE RESPOSTAS OFICIAL" : name_;
+            subtitle = "CARTAO-RESPOSTA PADRONIZADO PARA LEITURA OPTICA AUTOMATIZADA";
+            line_name = "NOME DO ALUNO: ___________________________________________  DATA: _______________";
+            line_id   = "MATRICULA / N: ___________________________________________  TURMA: ______________";
+            directions = "INSTRUCOES: Preencha totalmente os circulos com caneta preta ou azul. Uma opcao por questao.";
+        }
+
+        for (auto& c : title) c = static_cast<char>(std::toupper(static_cast<unsigned char>(c)));
+
+        int title_y = top_y + 16;
+        sheet.drawText(Point2Di(left_x + 14, title_y), title, black, scale_title);
+        sheet.drawText(Point2Di(left_x + 14, title_y + (8 * scale_title) + 6), subtitle, dark_gray, scale_sub);
+
+        // Student Info Block
+        int box_y = title_y + (8 * scale_title) + (8 * scale_sub) + 18;
+        int box_h = (18 * scale_text) + 36;
+        Recti info_box(left_x, box_y, right_x - left_x, box_h);
+        sheet.drawRect(info_box, black, 2);
+
+        sheet.drawText(Point2Di(info_box.x + 16, box_y + 12), line_name, black, scale_text);
+        sheet.drawText(Point2Di(info_box.x + 16, box_y + 12 + (10 * scale_text) + 6), line_id, black, scale_text);
+
+        // Instructions
+        int inst_y = box_y + box_h + 14;
+        sheet.drawText(Point2Di(left_x + 8, inst_y), directions, dark_gray, scale_text);
+
+        int div_y = inst_y + (8 * scale_text) + 12;
+        sheet.drawLine(Point2Di(left_x, div_y), Point2Di(right_x, div_y), black, 2);
+    }
+
+    // 3. Draw Questions, Numbers, and Bubbles
+    int q_num = 1;
     for (const auto& q : questions_) {
+        // Draw Question Number next to bubbles
+        if (include_decorations && !q.bubbles.empty()) {
+            const auto& first_b = q.bubbles.front();
+            int q_scale = std::max(1, static_cast<int>(first_b.radius / 9.0f));
+            std::string q_label = (q_num < 10 ? "0" : "") + std::to_string(q_num) + ".";
+            int q_x = static_cast<int>(first_b.center.x - first_b.radius - (q_label.size() * 6 * q_scale) - 6);
+            int q_y = static_cast<int>(first_b.center.y - (3.5f * q_scale));
+            if (q_x > 0 && q_y > 0) {
+                sheet.drawText(Point2Di(q_x, q_y), q_label, black, q_scale);
+            }
+        }
+
         for (const auto& b : q.bubbles) {
             Point2Di center(static_cast<int>(b.center.x), static_cast<int>(b.center.y));
             int r = static_cast<int>(b.radius);
 
             if (b.shape == LIBREOMR_SHAPE_CIRCLE) {
-                // Circle border with 2-pixel thickness
                 sheet.drawCircle(center, r, black, 2);
             } else {
                 Recti rect(center.x - r, center.y - r, r * 2, r * 2);
                 sheet.drawRect(rect, black, 2);
             }
+
+            // Draw letter label inside bubble if large enough
+            if (include_decorations && !b.label.empty() && r >= 16) {
+                int letter_scale = std::max(1, static_cast<int>(r / 10.0f));
+                int lx = center.x - (3 * letter_scale);
+                int ly = center.y - (3.5f * letter_scale);
+                sheet.drawText(Point2Di(lx, ly), b.label, dark_gray, letter_scale);
+            }
         }
+        q_num++;
     }
 
     return sheet;
 }
 
-Image Template::renderFilledSheet(const std::map<std::string, std::string>& answers) const {
-    Image sheet = renderBlankSheet();
+Image Template::renderFilledSheet(const std::map<std::string, std::string>& answers, bool include_decorations, const std::string& lang) const {
+    Image sheet = renderBlankSheet(include_decorations, lang);
     const std::vector<uint8_t> fill_color = {25}; // Dark pencil/pen simulation
 
     for (const auto& q : questions_) {
@@ -290,6 +385,98 @@ Image Template::renderFilledSheet(const std::map<std::string, std::string>& answ
     }
 
     return sheet;
+}
+
+Template Template::createStandard(int num_questions, int num_options,
+                                  const std::string& title,
+                                  uint32_t dpi,
+                                  const std::string& page_size,
+                                  int columns) {
+    if (num_questions <= 0) num_questions = 20;
+    if (num_options < 2) num_options = 2;
+    if (num_options > 10) num_options = 10;
+    if (dpi < 72) dpi = 72;
+
+    uint32_t sheet_w = 2480;
+    uint32_t sheet_h = 3508;
+
+    std::string norm_size = page_size;
+    for (auto& c : norm_size) c = static_cast<char>(std::tolower(static_cast<unsigned char>(c)));
+
+    if (norm_size == "letter" || norm_size == "usletter" || norm_size == "us-letter") {
+        sheet_w = static_cast<uint32_t>(std::round(8.5f * dpi));
+        sheet_h = static_cast<uint32_t>(std::round(11.0f * dpi));
+    } else { // Default A4 (210 x 297 mm)
+        sheet_w = static_cast<uint32_t>(std::round(210.0f / 25.4f * dpi));
+        sheet_h = static_cast<uint32_t>(std::round(297.0f / 25.4f * dpi));
+    }
+
+    std::string template_name = title.empty() ? "Examination Answer Sheet" : title;
+    Template tmpl(template_name, sheet_w, sheet_h, dpi);
+
+    float margin = static_cast<float>(dpi) * 0.40f; // ~120px at 300 DPI
+    float marker_size = static_cast<float>(dpi) * 0.20f; // ~60px at 300 DPI
+    tmpl.setDefaultFiducials(margin, marker_size);
+
+    int cols = columns;
+    if (cols <= 0) {
+        if (num_questions <= 25) cols = 1;
+        else if (num_questions <= 50) cols = 2;
+        else if (num_questions <= 100) cols = 4;
+        else cols = 5;
+    }
+    cols = std::clamp(cols, 1, 8);
+
+    int questions_per_col = (num_questions + cols - 1) / cols;
+
+    float start_y = static_cast<float>(dpi) * 1.55f; // Safely below header and candidate info block
+    float bottom_y = static_cast<float>(sheet_h) - margin - (static_cast<float>(dpi) * 0.25f);
+    float available_h = bottom_y - start_y;
+
+    float row_h = available_h / static_cast<float>(questions_per_col);
+    float max_row_h = static_cast<float>(dpi) * 0.26f;
+    if (row_h > max_row_h) row_h = max_row_h;
+
+    float bubble_radius = std::min(row_h * 0.26f, static_cast<float>(dpi) * 0.058f);
+    bubble_radius = std::max(7.0f, bubble_radius);
+
+    float bubble_spacing = bubble_radius * 2.85f;
+    float col_span = (static_cast<float>(sheet_w) - (margin * 2.0f)) / static_cast<float>(cols);
+
+    float label_pad = bubble_radius * 3.6f;
+    float block_width = label_pad + (num_options * bubble_spacing);
+
+    for (int q = 1; q <= num_questions; ++q) {
+        QuestionDefinition q_def;
+        q_def.id = "q" + std::to_string(q);
+        q_def.name = "Question " + std::to_string(q);
+        q_def.type = LIBREOMR_QUESTION_SINGLE_CHOICE;
+        q_def.weight = 1.0f;
+
+        // Default cyclic answer key A, B, C, D, E...
+        std::string key(1, static_cast<char>('A' + ((q - 1) % num_options)));
+        q_def.correct_answer = key;
+
+        int c = (q - 1) / questions_per_col;
+        int r = (q - 1) % questions_per_col;
+
+        float col_left = margin + (c * col_span);
+        float offset_x = (col_span - block_width) * 0.5f;
+        if (offset_x < label_pad) offset_x = label_pad;
+
+        float base_x = col_left + offset_x + (bubble_radius * 1.2f);
+        float base_y = start_y + (r * row_h) + (row_h * 0.5f);
+
+        for (int opt = 0; opt < num_options; ++opt) {
+            std::string label(1, static_cast<char>('A' + opt));
+            float bx = base_x + (opt * bubble_spacing);
+            q_def.addBubble(label, Point2Df(bx, base_y), bubble_radius);
+        }
+
+        tmpl.addQuestion(q_def);
+    }
+
+    return tmpl;
 }
 
 } // namespace libreomr

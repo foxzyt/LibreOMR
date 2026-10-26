@@ -18,7 +18,7 @@
 
 cmake_minimum_required(VERSION 3.16)
 project(LibreOMR
-    VERSION 1.1.3
+    VERSION 1.2.0
     DESCRIPTION "Robust Optical Mark Recognition (OMR) Library in C++ and C"
     LANGUAGES C CXX
 )
@@ -40,6 +40,7 @@ set(CMAKE_INSTALL_RPATH_USE_LINK_PATH TRUE)
 option(BUILD_SHARED_LIBS "Build shared libraries" ON)
 option(LIBREOMR_BUILD_CLI "Build LibreOMR CLI executable" ON)
 option(LIBREOMR_BUILD_TESTS "Build LibreOMR unit tests" ON)
+option(LIBREOMR_BUILD_APP "Build LibreOMR Desktop application" ON)
 
 # Library sources
 set(LIBREOMR_HEADERS
@@ -116,6 +117,34 @@ if(LIBREOMR_BUILD_CLI)
     target_link_libraries(libreomr-cli PRIVATE libreomr)
     target_include_directories(libreomr-cli PRIVATE include)
     set_target_properties(libreomr-cli PROPERTIES OUTPUT_NAME "libreomr")
+endif()
+
+# Desktop Application (WebView2)
+if(WIN32 AND LIBREOMR_BUILD_APP)
+    add_executable(libreomr-desktop WIN32 
+        app/src/main.cpp 
+        app/resources/app.rc
+    )
+    target_include_directories(libreomr-desktop PRIVATE
+        include
+        third_party/webview
+    )
+    target_link_libraries(libreomr-desktop PRIVATE
+        libreomr
+        ole32
+        version
+        shlwapi
+        user32
+        comdlg32
+    )
+    set_target_properties(libreomr-desktop PROPERTIES OUTPUT_NAME "libreomr-desktop")
+
+    install(TARGETS libreomr-desktop
+        RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR}
+    )
+    install(DIRECTORY app/ui
+        DESTINATION ${CMAKE_INSTALL_BINDIR}
+    )
 endif()
 
 # Unit Tests
