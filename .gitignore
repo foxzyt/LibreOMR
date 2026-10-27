@@ -22,3 +22,4 @@ install-test/
 *.json
 *.pdf
 __pycache__/
+tools/
