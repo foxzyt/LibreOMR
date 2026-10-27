@@ -24,7 +24,26 @@ document.addEventListener("DOMContentLoaded", () => {
   initExamConfig();
   initGenerator();
   checkFirstTimeSetup();
+  checkCliTarget();
 });
+
+async function checkCliTarget() {
+  if (window.api_get_initial_target) {
+    try {
+      const rawRes = await window.api_get_initial_target();
+      const res = typeof rawRes === "string" ? JSON.parse(rawRes) : rawRes;
+      if (res && res.type === "file" && res.path) {
+        setSingleImage(res.path);
+        switchTab("tab-process");
+      } else if (res && res.type === "directory" && res.files && res.files.length > 0) {
+        batchImagePaths = res.files;
+        const countEl = document.getElementById("batchCount");
+        if (countEl) countEl.textContent = res.files.length;
+        switchTab("tab-batch");
+      }
+    } catch (e) {}
+  }
+}
 
 window.onLanguageChanged = function() {
   renderAnswerKeysEditor();
@@ -41,14 +60,15 @@ function initNavigation() {
 
   document.getElementById("btnBrowseSingle").addEventListener("click", async (e) => {
     e.stopPropagation();
-    if (window.api_pick_image) {
-      const path = await window.api_pick_image();
-      if (path && path.length > 0) {
-        setSingleImage(path);
+    try {
+      if (window.api_pick_image) {
+        const path = await window.api_pick_image();
+        if (path && path.length > 0) {
+          setSingleImage(path);
+          return;
+        }
       }
-    } else {
-      setSingleImage("scratch/folha_escaneada_40q.png");
-    }
+    } catch (err) {}
   });
 
   document.getElementById("btnProcessSingle").addEventListener("click", processSingleSheet);
@@ -56,9 +76,9 @@ function initNavigation() {
   document.getElementById("btnBrowseBatch").addEventListener("click", async (e) => {
     e.stopPropagation();
     if (window.api_pick_images) {
-      const filesJson = await window.api_pick_images();
+      const filesRaw = await window.api_pick_images();
       try {
-        const files = JSON.parse(filesJson);
+        const files = typeof filesRaw === "string" ? JSON.parse(filesRaw) : filesRaw;
         if (Array.isArray(files) && files.length > 0) {
           batchImagePaths = files;
           document.getElementById("batchCount").textContent = files.length;
@@ -427,34 +447,102 @@ function evaluateStudentAnswers(rawQuestions) {
 
 function initDragAndDrop() {
   const dropzone = document.getElementById("sheetDropzone");
-  if (!dropzone) return;
-
-  dropzone.addEventListener("click", () => {
-    document.getElementById("btnBrowseSingle").click();
-  });
-
-  ["dragenter", "dragover"].forEach(event => {
-    dropzone.addEventListener(event, (e) => {
-      e.preventDefault();
-      e.stopPropagation();
-      dropzone.classList.add("dragover");
+  if (dropzone) {
+    dropzone.addEventListener("click", () => {
+      document.getElementById("btnBrowseSingle").click();
     });
-  });
 
-  ["dragleave", "drop"].forEach(event => {
-    dropzone.addEventListener(event, (e) => {
-      e.preventDefault();
-      e.stopPropagation();
-      dropzone.classList.remove("dragover");
+    ["dragenter", "dragover"].forEach(event => {
+      dropzone.addEventListener(event, (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        dropzone.classList.add("dragover");
+      });
     });
-  });
 
-  dropzone.addEventListener("drop", (e) => {
-    if (e.dataTransfer && e.dataTransfer.files && e.dataTransfer.files.length > 0) {
-      const file = e.dataTransfer.files[0];
-      setSingleImage(file.path || file.name);
-    }
-  });
+    ["dragleave", "drop"].forEach(event => {
+      dropzone.addEventListener(event, (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        dropzone.classList.remove("dragover");
+      });
+    });
+
+    dropzone.addEventListener("drop", (e) => {
+      if (e.dataTransfer && e.dataTransfer.files && e.dataTransfer.files.length > 0) {
+        const file = e.dataTransfer.files[0];
+        if (file.path) {
+          setSingleImage(file.path);
+          return;
+        }
+        const reader = new FileReader();
+        reader.onload = async (evt) => {
+          if (window.api_save_dropped_image) {
+            try {
+              const saved = await window.api_save_dropped_image(file.name, evt.target.result);
+              if (saved && saved.length > 0) {
+                setSingleImage(saved);
+                return;
+              }
+            } catch (err) {}
+          }
+          setSingleImage(file.name);
+        };
+        reader.readAsDataURL(file);
+      }
+    });
+  }
+
+  const batchZone = document.getElementById("batchDropzone");
+  if (batchZone) {
+    batchZone.addEventListener("click", () => {
+      document.getElementById("btnBrowseBatch").click();
+    });
+
+    ["dragenter", "dragover"].forEach(event => {
+      batchZone.addEventListener(event, (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        batchZone.classList.add("dragover");
+      });
+    });
+
+    ["dragleave", "drop"].forEach(event => {
+      batchZone.addEventListener(event, (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        batchZone.classList.remove("dragover");
+      });
+    });
+
+    batchZone.addEventListener("drop", async (e) => {
+      if (e.dataTransfer && e.dataTransfer.files && e.dataTransfer.files.length > 0) {
+        const files = Array.from(e.dataTransfer.files);
+        for (const file of files) {
+          if (file.path) {
+            batchImagePaths.push(file.path);
+            const countEl = document.getElementById("batchCount");
+            if (countEl) countEl.textContent = batchImagePaths.length;
+          } else {
+            const reader = new FileReader();
+            reader.onload = async (evt) => {
+              if (window.api_save_dropped_image) {
+                try {
+                  const saved = await window.api_save_dropped_image(file.name, evt.target.result);
+                  if (saved && saved.length > 0) {
+                    batchImagePaths.push(saved);
+                    const countEl = document.getElementById("batchCount");
+                    if (countEl) countEl.textContent = batchImagePaths.length;
+                  }
+                } catch (err) {}
+              }
+            };
+            reader.readAsDataURL(file);
+          }
+        }
+      }
+    });
+  }
 }
 
 function setSingleImage(filePath) {
@@ -902,8 +990,11 @@ async function processSingleSheet() {
     let rawQuestions = [];
 
     if (window.api_process) {
-      const resJson = await window.api_process(JSON.stringify(payload));
-      const parsed = JSON.parse(resJson);
+      const res = await window.api_process(JSON.stringify(payload));
+      const parsed = typeof res === "string" ? JSON.parse(res) : res;
+      if (parsed.error) {
+        throw new Error(parsed.error);
+      }
       rawQuestions = parsed.questions || [];
     } else {
       await new Promise(r => setTimeout(r, 80));
@@ -1175,8 +1266,8 @@ async function runBatchEvaluation() {
         num_options: currentOptionsCount,
         config: { fill_threshold: 0.32, auto_align: true, auto_orient: true, adaptive_thresholding: true, refine_bubble_centers: true }
       };
-      const resJson = await window.api_process(JSON.stringify(payload));
-      const parsed = JSON.parse(resJson);
+      const res = await window.api_process(JSON.stringify(payload));
+      const parsed = typeof res === "string" ? JSON.parse(res) : res;
       rawQuestions = parsed.questions || [];
     } else {
       await new Promise(r => setTimeout(r, 40));

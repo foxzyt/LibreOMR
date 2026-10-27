@@ -1,14 +1,17 @@
-## LibreOMR 1.2.0
+# LibreOMR 1.2.0 Release Notes
 
-### Desktop Application & GUI
-- **LibreOMR Desktop**: Built-in desktop graphical interface powered by native WebView2 for instant single-sheet grading and high-throughput batch evaluation.
-- **Custom Question Weights & Void Questions**: Full support for weighted grading (custom point values per question) and voided/canceled questions (*anuladas*) automatically awarding full credit.
-- **Student Roster Integration**: Automatic enrollment and student name recognition, roster mapping via CSV import, and per-student performance breakdown.
-- **Statistical KPI Dashboard & Item Analysis**: Real-time batch metrics (class average, approval rate, highest and lowest scores) alongside automated question difficulty classification (Easy / Medium / Hard) and option frequency distribution.
-- **Canonical A4 Answer Sheet Generator**: High-precision vector and bitmap sheet generation (PDF/SVG/PNG) matching the OMR recognition template 1:1, complete with corner fiducial markers and multilingual headers (PT, EN, ES).
-- **Full Internationalization (i18n)**: Native UI translation covering Portuguese (BR), English (US), and Spanish (ES).
-- **Native Windows Shell Integration**: Embedded multi-resolution application icon (`app.ico`) in the executable PE resource table and Windows taskbar window binding (`WM_SETICON`).
+LibreOMR 1.2.0 introduces LibreOMR Desktop, an intuitive graphical application designed to streamline the grading and evaluation of multiple-choice bubble sheets for educators, institutions, and assessment coordinators.
 
-### Core Library & CLI
-- **Template Rendering**: Added `Template::renderBlankSheet` supporting customizable DPI and multilingual labels.
-- **CLI Updates**: Added commands and flags for blank answer sheet generation and refined bubble analysis options.
+## LibreOMR Desktop Overview
+
+LibreOMR Desktop provides an end-to-end workflow for managing, processing, and analyzing standardized answer sheets directly from a clean desktop interface.
+
+### Key Capabilities
+
+- **Single and Batch Sheet Evaluation**: Process individual scanned sheets or evaluate entire batches from a directory in seconds.
+- **Answer Key and Grading Configuration**: Define answer keys with custom question weights, point scales, and the ability to mark questions as voided with automatic full credit.
+- **Roster and Student Association**: Map student names and identification numbers via roster CSV import to automatically associate marks with student profiles.
+- **Statistical Dashboard and Item Analysis**: Review real-time performance indicators, including average score, approval percentage, score distribution, and individual question difficulty.
+- **Export Options**: Export detailed grading results and student records directly to CSV and JSON formats for spreadsheet and database integration.
+- **Printable Template Library**: Includes a comprehensive catalog of standardized A4 answer sheets (10 to 100 questions, 3 to 5 options), economical 2-in-1 and 4-in-1 layouts, and True/False assessment sheets in six languages (English, Portuguese, Spanish, French, German, and Italian).
+- **Windows Integration**: Native desktop application with file associations, shell context menu integration for right-click grading of images and folders, and an integrated installer.

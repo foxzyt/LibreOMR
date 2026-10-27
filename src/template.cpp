@@ -414,31 +414,43 @@ Template Template::createStandard(int num_questions, int num_options,
     std::string template_name = title.empty() ? "Examination Answer Sheet" : title;
     Template tmpl(template_name, sheet_w, sheet_h, dpi);
 
-    float margin = static_cast<float>(dpi) * 0.40f; // ~120px at 300 DPI
-    float marker_size = static_cast<float>(dpi) * 0.20f; // ~60px at 300 DPI
-    tmpl.setDefaultFiducials(margin, marker_size);
+    float scale = static_cast<float>(dpi) / 300.0f;
+    float margin = 120.0f * scale;
+    float marker_size = 64.0f * scale;
+    float f_half = marker_size / 2.0f;
+
+    // The OMR area begins below the header and student information block
+    float omr_top = 440.0f * scale;
+    float omr_bottom = static_cast<float>(sheet_h) - (120.0f * scale);
+
+    tmpl.setFiducials(Quad2D(
+        Point2Df(margin + f_half, omr_top + f_half),
+        Point2Df(static_cast<float>(sheet_w) - margin - f_half, omr_top + f_half),
+        Point2Df(static_cast<float>(sheet_w) - margin - f_half, omr_bottom - f_half),
+        Point2Df(margin + f_half, omr_bottom - f_half)
+    ));
 
     int cols = columns;
     if (cols <= 0) {
-        if (num_questions <= 25) cols = 1;
+        if (num_questions <= 20) cols = 1;
         else if (num_questions <= 50) cols = 2;
-        else if (num_questions <= 100) cols = 4;
-        else cols = 5;
+        else if (num_questions <= 70) cols = 3;
+        else cols = 4;
     }
     cols = std::clamp(cols, 1, 8);
 
     int questions_per_col = (num_questions + cols - 1) / cols;
 
-    float start_y = static_cast<float>(dpi) * 1.55f; // Safely below header and candidate info block
-    float bottom_y = static_cast<float>(sheet_h) - margin - (static_cast<float>(dpi) * 0.25f);
-    float available_h = bottom_y - start_y;
+    float grid_top = omr_top + (65.0f * scale);
+    float grid_bottom = omr_bottom - (45.0f * scale);
+    float available_h = grid_bottom - grid_top;
 
     float row_h = available_h / static_cast<float>(questions_per_col);
-    float max_row_h = static_cast<float>(dpi) * 0.26f;
+    float max_row_h = static_cast<float>(dpi) * 0.28f;
     if (row_h > max_row_h) row_h = max_row_h;
 
-    float bubble_radius = std::min(row_h * 0.26f, static_cast<float>(dpi) * 0.058f);
-    bubble_radius = std::max(7.0f, bubble_radius);
+    float bubble_radius = std::min(row_h * 0.26f, static_cast<float>(dpi) * 0.056f);
+    bubble_radius = std::max(8.0f * scale, bubble_radius);
 
     float bubble_spacing = bubble_radius * 2.85f;
     float col_span = (static_cast<float>(sheet_w) - (margin * 2.0f)) / static_cast<float>(cols);
@@ -457,20 +469,17 @@ Template Template::createStandard(int num_questions, int num_options,
         std::string key(1, static_cast<char>('A' + ((q - 1) % num_options)));
         q_def.correct_answer = key;
 
-        int c = (q - 1) / questions_per_col;
-        int r = (q - 1) % questions_per_col;
+        int col_idx = (q - 1) / questions_per_col;
+        int row_idx = (q - 1) % questions_per_col;
 
-        float col_left = margin + (c * col_span);
-        float offset_x = (col_span - block_width) * 0.5f;
-        if (offset_x < label_pad) offset_x = label_pad;
-
-        float base_x = col_left + offset_x + (bubble_radius * 1.2f);
-        float base_y = start_y + (r * row_h) + (row_h * 0.5f);
+        float q_x = margin + (col_idx * col_span) + (col_span - block_width) * 0.5f;
+        float q_y = grid_top + (row_idx * row_h) + (row_h * 0.5f);
 
         for (int opt = 0; opt < num_options; ++opt) {
             std::string label(1, static_cast<char>('A' + opt));
-            float bx = base_x + (opt * bubble_spacing);
-            q_def.addBubble(label, Point2Df(bx, base_y), bubble_radius);
+            float bx = q_x + label_pad + (opt * bubble_spacing);
+            float by = q_y;
+            q_def.addBubble(label, Point2Df(bx, by), bubble_radius);
         }
 
         tmpl.addQuestion(q_def);
