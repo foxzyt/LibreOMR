@@ -61,3 +61,8 @@ In case you are looking for the C++17 library, pure C ABI, or command-line inter
 
 LibreOMR is free and open-source software licensed under the **GNU General Public License v3.0 (GPLv3)**.  
 See the [LICENSE](LICENSE) file for details.
+
+---
+
+LibreOMR started a few months ago (07/23/26) as a side hustle, which explains the fluctuating commit activity on my other project, the Sapphire programming language. As LibreOMR grew into a real solution, I decided to abandon Sapphire and dedicate all of my focus here.
+
