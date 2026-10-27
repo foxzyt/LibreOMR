@@ -230,11 +230,17 @@ PageResult Processor::process(const Image& image, const Template& tmpl) const {
                         score -= 500.0;
                     }
 
+                    // Upright prior: k = 0 corresponds to the natural orientation detected from the image frame
+                    if (k == 0) {
+                        score += 60.0;
+                    }
+
                     bool h_inv_ok = false;
                     Matrix3x3 h_inv = Matrix3x3::computeHomography(tmpl.fiducials(), q, &h_inv_ok);
                     if (!h_inv_ok) continue;
 
-                    // Sample header (top 12%) vs footer (bottom 10%)
+                    // Sample header (top 12%) vs footer (bottom 10%) using local edge gradients
+                    // to prevent ambient illumination shadows from being mistaken for printed text
                     double header_darkness = 0.0;
                     int header_samples = 0;
                     for (float px = 0.25f; px <= 0.75f; px += 0.15f) {
@@ -243,9 +249,11 @@ PageResult Processor::process(const Image& image, const Template& tmpl) const {
                             Point2Df probe_img = h_inv.transform(probe_tmpl);
                             int ix = static_cast<int>(std::round(probe_img.x));
                             int iy = static_cast<int>(std::round(probe_img.y));
-                            if (ix >= 0 && ix < static_cast<int>(gray.width()) &&
-                                iy >= 0 && iy < static_cast<int>(gray.height())) {
-                                header_darkness += (255.0 - gray.at(ix, iy, 0));
+                            if (ix >= 2 && ix < static_cast<int>(gray.width()) - 2 &&
+                                iy >= 2 && iy < static_cast<int>(gray.height()) - 2) {
+                                int gx = std::abs(gray.at(ix + 2, iy, 0) - gray.at(ix - 2, iy, 0));
+                                int gy = std::abs(gray.at(ix, iy + 2, 0) - gray.at(ix, iy - 2, 0));
+                                header_darkness += (gx + gy);
                                 header_samples++;
                             }
                         }
@@ -259,9 +267,11 @@ PageResult Processor::process(const Image& image, const Template& tmpl) const {
                             Point2Df probe_img = h_inv.transform(probe_tmpl);
                             int ix = static_cast<int>(std::round(probe_img.x));
                             int iy = static_cast<int>(std::round(probe_img.y));
-                            if (ix >= 0 && ix < static_cast<int>(gray.width()) &&
-                                iy >= 0 && iy < static_cast<int>(gray.height())) {
-                                footer_darkness += (255.0 - gray.at(ix, iy, 0));
+                            if (ix >= 2 && ix < static_cast<int>(gray.width()) - 2 &&
+                                iy >= 2 && iy < static_cast<int>(gray.height()) - 2) {
+                                int gx = std::abs(gray.at(ix + 2, iy, 0) - gray.at(ix - 2, iy, 0));
+                                int gy = std::abs(gray.at(ix, iy + 2, 0) - gray.at(ix, iy - 2, 0));
+                                footer_darkness += (gx + gy);
                                 footer_samples++;
                             }
                         }
@@ -314,12 +324,12 @@ PageResult Processor::process(const Image& image, const Template& tmpl) const {
                                 }
                                 bubble_probes++;
                             }
-                            if (bubble_probes >= 15) break;
+                            if (bubble_probes >= 30) break;
                         }
-                        if (bubble_probes >= 15) break;
+                        if (bubble_probes >= 30) break;
                     }
                     if (bubble_probes > 0) {
-                        score += (bubble_score / bubble_probes) * 2.0;
+                        score += (bubble_score / bubble_probes) * 4.0;
                     }
 
                     if (score > best_score) {
