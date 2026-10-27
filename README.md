@@ -1,12 +1,22 @@
-# LibreOMR Desktop
+<p align="center">
+  <img src="app/ui/icon.svg" width="96" height="96" alt="LibreOMR Desktop Logo" />
+</p>
 
-[![Release](https://img.shields.io/github/v/release/foxzyt/LibreOMR?label=Release&color=blue)](https://github.com/foxzyt/LibreOMR/releases)
-[![Platform](https://img.shields.io/badge/Platform-Windows%2010%20%2F%2011-blue.svg)](https://github.com/foxzyt/LibreOMR/releases)
-[![License: GPL v3](https://img.shields.io/badge/License-GPLv3-green.svg)](LICENSE)
+<h1 align="center">LibreOMR Desktop</h1>
 
-**LibreOMR Desktop** is a free, simple, and reliable multiple-choice exam grading application for teachers, educators, and schools. 
+<p align="center">
+  <a href="https://github.com/foxzyt/LibreOMR/releases"><img src="https://img.shields.io/github/v/release/foxzyt/LibreOMR?label=Release&color=blue" alt="Release" /></a>
+  <a href="https://github.com/foxzyt/LibreOMR/releases"><img src="https://img.shields.io/badge/Platform-Windows%2010%20%2F%2011-blue.svg" alt="Platform" /></a>
+  <a href="LICENSE"><img src="https://img.shields.io/badge/License-GPLv3-green.svg" alt="License" /></a>
+</p>
 
-Print ready-to-use answer sheets, scan or photograph them with any standard scanner or mobile phone, and grade entire classes in seconds — with no expensive equipment or internet connection required.
+<p align="center">
+  <strong>Free, fast, and private multiple-choice exam grading software for teachers, educators, and schools.</strong>
+</p>
+
+<p align="center">
+  Print ready-to-use answer sheets, scan or photograph them with any standard scanner or mobile phone, and grade entire classes in seconds, with no expensive equipment or internet connection required.
+</p>
 
 ---
 
